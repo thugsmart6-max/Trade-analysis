@@ -27,7 +27,7 @@ export function Step1StockDetails({ data, onNext }: Step1Props) {
     watch,
     formState: { errors },
   } = useForm<Step1Data>({
-    resolver: zodResolver(step1Schema),
+    resolver: zodResolver(step1Schema) as any,
     defaultValues: {
       nseSymbol: data.nseSymbol,
       sector: data.sector,
