@@ -77,7 +77,7 @@ const IndicatorSetSchema = new Schema<IIndicatorSet>(
 
 const AnalysisSchema = new Schema<IAnalysis>(
   {
-    companyName: { type: String, required: true },
+    companyName: { type: String, default: "" },
     nseSymbol: { type: String, required: true, uppercase: true },
     sector: { type: String, required: true },
     analysisDate: { type: Date, required: true },

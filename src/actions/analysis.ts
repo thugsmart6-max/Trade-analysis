@@ -132,44 +132,52 @@ export async function getAnalysisById(id: string): Promise<AnalysisFull | null> 
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function buildAnalysisData(data: any, status: "draft" | "published") {
+  const nseSymbol = (data.nseSymbol ?? "").toString().toUpperCase();
+  const sector = (data.sector ?? "").toString();
+  const analysisDate = data.analysisDate ? new Date(data.analysisDate) : new Date();
+  const analysisTime = (data.analysisTime ?? "").toString();
+
+  if (!nseSymbol) throw new Error("NSE Symbol is required");
+  if (!sector)    throw new Error("Sector is required");
+
   return {
-    companyName: data.companyName,
-    nseSymbol: data.nseSymbol.toUpperCase(),
-    sector: data.sector,
-    analysisDate: new Date(data.analysisDate),
-    analysisTime: data.analysisTime,
+    companyName: (data.companyName ?? "").toString(),
+    nseSymbol,
+    sector,
+    analysisDate,
+    analysisTime,
     status,
     priceInfo: {
       currentPrice: toNumber(data.priceInfo?.currentPrice) ?? 0,
-      prevOpen: toNumber(data.priceInfo?.prevOpen),
-      prevClose: toNumber(data.priceInfo?.prevClose),
-      prevHigh: toNumber(data.priceInfo?.prevHigh),
-      prevLow: toNumber(data.priceInfo?.prevLow),
-      allTimeHigh: toNumber(data.priceInfo?.allTimeHigh),
-      yearHigh: toNumber(data.priceInfo?.yearHigh),
-      yearLow: toNumber(data.priceInfo?.yearLow),
+      prevOpen:     toNumber(data.priceInfo?.prevOpen),
+      prevClose:    toNumber(data.priceInfo?.prevClose),
+      prevHigh:     toNumber(data.priceInfo?.prevHigh),
+      prevLow:      toNumber(data.priceInfo?.prevLow),
+      allTimeHigh:  toNumber(data.priceInfo?.allTimeHigh),
+      yearHigh:     toNumber(data.priceInfo?.yearHigh),
+      yearLow:      toNumber(data.priceInfo?.yearLow),
     },
     technicalPattern: {
-      trend: data.technicalPattern?.trend,
-      patternType: data.technicalPattern?.patternType,
-      confidenceLevel: data.technicalPattern?.confidenceLevel,
-      notes: data.technicalPattern?.notes || "",
+      trend:           data.technicalPattern?.trend ?? "bullish",
+      patternType:     (data.technicalPattern?.patternType ?? "").toString(),
+      confidenceLevel: data.technicalPattern?.confidenceLevel ?? "medium",
+      notes:           (data.technicalPattern?.notes ?? "").toString(),
     },
     indicators: {
-      "5m": buildIndicators(data.indicators?.["5m"]),
+      "5m":  buildIndicators(data.indicators?.["5m"]),
       "30m": buildIndicators(data.indicators?.["30m"]),
-      "1h": buildIndicators(data.indicators?.["1h"]),
-      "1d": buildIndicators(data.indicators?.["1d"]),
+      "1h":  buildIndicators(data.indicators?.["1h"]),
+      "1d":  buildIndicators(data.indicators?.["1d"]),
     },
     tradeRecommendation: {
-      buyZone: toNumber(data.tradeRecommendation?.buyZone) ?? 0,
-      target1: toNumber(data.tradeRecommendation?.target1) ?? 0,
-      target2: toNumber(data.tradeRecommendation?.target2),
-      target3: toNumber(data.tradeRecommendation?.target3),
-      stopLoss: toNumber(data.tradeRecommendation?.stopLoss) ?? 0,
+      buyZone:        toNumber(data.tradeRecommendation?.buyZone)        ?? 0,
+      target1:        toNumber(data.tradeRecommendation?.target1)        ?? 0,
+      target2:        toNumber(data.tradeRecommendation?.target2),
+      target3:        toNumber(data.tradeRecommendation?.target3),
+      stopLoss:       toNumber(data.tradeRecommendation?.stopLoss)       ?? 0,
       riskRewardRatio: toNumber(data.tradeRecommendation?.riskRewardRatio),
     },
-    analysisReason: data.analysisReason || "",
+    analysisReason: (data.analysisReason ?? "").toString(),
   };
 }
 
