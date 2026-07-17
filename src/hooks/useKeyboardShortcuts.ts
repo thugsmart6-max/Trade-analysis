@@ -14,6 +14,7 @@ interface KeyboardShortcut {
 export function useKeyboardShortcuts(shortcuts: KeyboardShortcut[]) {
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
+      if (!e.key) return;
       for (const shortcut of shortcuts) {
         const ctrl = shortcut.ctrlKey || shortcut.metaKey;
         const isCtrl = ctrl ? (e.ctrlKey || e.metaKey) : true;
