@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 import { notFound } from "next/navigation";
 import { getAnalysisById } from "@/actions/analysis";
 import { AnalysisDetailView } from "@/components/analysis/detail/AnalysisDetailView";
