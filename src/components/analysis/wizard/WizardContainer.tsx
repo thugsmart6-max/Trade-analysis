@@ -33,9 +33,14 @@ const slideVariants = {
   exit:  (d: number) => ({ x: d < 0 ? 40 : -40, opacity: 0 }),
 };
 
-export function WizardContainer() {
+interface WizardContainerProps {
+  initialData?: Partial<AnalysisFormData>;
+  initialId?: string;
+}
+
+export function WizardContainer({ initialData, initialId }: WizardContainerProps = {}) {
   const router = useRouter();
-  const wizard = useAnalysisWizard();
+  const wizard = useAnalysisWizard(initialData, initialId);
 
   const { manualSave } = useAutoSave({
     formData: wizard.formData,
@@ -81,7 +86,7 @@ export function WizardContainer() {
         wizard.setAnalysisId(id);
       }
       clearDraftStorage();
-      router.push(`/analysis/${id}/preview`);
+      router.push(initialId ? `/analysis/${id}` : `/analysis/${id}/preview`);
     } catch {
       toast.error("Failed to save analysis. Please try again.");
     } finally {

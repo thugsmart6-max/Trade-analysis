@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { TrendingUp, TrendingDown, Minus, Eye, Trash2, ExternalLink } from "lucide-react";
+import { TrendingUp, TrendingDown, Minus, Eye, Trash2, ExternalLink, Pencil } from "lucide-react";
 import { AnalysisListItem } from "@/types/analysis";
 import { formatDate, formatCurrency } from "@/lib/utils";
 import { deleteAnalysis } from "@/actions/analysis";
@@ -107,7 +107,7 @@ export function AnalysisTable({ analyses }: AnalysisTableProps) {
             transition={{ delay: i * 0.025 }}
             className="group"
           >
-              <div className="grid grid-cols-12 gap-2 px-4 py-3 hover:bg-accent/50 transition-colors items-center relative">
+              <div className="grid grid-cols-12 gap-2 pl-4 pr-24 py-3 hover:bg-accent/50 transition-colors items-center relative">
                 {/* Company */}
                 <div className="col-span-6 sm:col-span-4 md:col-span-3 flex items-center gap-2 min-w-0">
                 <div className="w-7 h-7 rounded-sm bg-[#111111] border border-border flex items-center justify-center shrink-0">
@@ -153,24 +153,30 @@ export function AnalysisTable({ analyses }: AnalysisTableProps) {
               </div>
 
               {/* Status */}
-              <div className="col-span-3 sm:col-span-2 md:col-span-1 hidden sm:flex items-center">
+              <div className="col-span-3 sm:col-span-2 md:col-span-1 hidden sm:flex items-center group-hover:opacity-0 transition-opacity">
                 <StatusBadge status={a.status} />
               </div>
 
               {/* Actions — hover reveal */}
-              <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity bg-accent/50 rounded-md px-1 py-0.5">
+              <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity bg-card border border-border rounded-md px-1 py-0.5 shadow-sm">
                 <Link href={`/analysis/${a._id}`}>
-                  <button className="w-6 h-6 flex items-center justify-center text-muted-foreground hover:text-[#F0B429] transition-colors rounded">
+                  <button className="w-6 h-6 flex items-center justify-center text-muted-foreground hover:text-[#F0B429] transition-colors rounded" title="View">
                     <Eye className="w-3 h-3" />
                   </button>
                 </Link>
+                <Link href={`/analysis/${a._id}/edit`}>
+                  <button className="w-6 h-6 flex items-center justify-center text-muted-foreground hover:text-[#F0B429] transition-colors rounded" title="Edit">
+                    <Pencil className="w-3 h-3" />
+                  </button>
+                </Link>
                 <Link href={`/analysis/${a._id}/preview`}>
-                  <button className="w-6 h-6 flex items-center justify-center text-muted-foreground hover:text-[#F0B429] transition-colors rounded">
+                  <button className="w-6 h-6 flex items-center justify-center text-muted-foreground hover:text-[#F0B429] transition-colors rounded" title="Preview">
                     <ExternalLink className="w-3 h-3" />
                   </button>
                 </Link>
                 <button
                   className="w-6 h-6 flex items-center justify-center text-muted-foreground hover:text-[#FF4D6A] transition-colors rounded"
+                  title="Delete"
                   onClick={() => handleDelete(a._id, a.companyName)}
                 >
                   <Trash2 className="w-3 h-3" />
