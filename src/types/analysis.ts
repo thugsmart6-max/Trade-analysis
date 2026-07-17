@@ -141,6 +141,9 @@ export const SECTORS = [
 ] as const;
 
 export const PATTERN_TYPES = [
+  "Uptrend",
+  "Downtrend",
+  "Consolidation",
   "Double Bottom",
   "Double Top",
   "Head & Shoulders",
