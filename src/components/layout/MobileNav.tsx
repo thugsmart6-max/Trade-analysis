@@ -2,13 +2,14 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, FileBarChart2, PlusCircle } from "lucide-react";
+import { LayoutDashboard, FileBarChart2, PlusCircle, FlaskConical } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const items = [
   { label: "Dashboard",  href: "/",             icon: LayoutDashboard },
   { label: "New",        href: "/analysis/new", icon: PlusCircle      },
   { label: "Analyses",   href: "/analysis",     icon: FileBarChart2   },
+  { label: "Research",   href: "/research",     icon: FlaskConical    },
 ];
 
 export function MobileNav() {

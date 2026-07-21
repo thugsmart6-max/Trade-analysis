@@ -4,13 +4,14 @@ import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { LayoutDashboard, FileBarChart2, PlusCircle, ChevronLeft, ChevronRight, X } from "lucide-react";
+import { LayoutDashboard, FileBarChart2, PlusCircle, ChevronLeft, ChevronRight, X, FlaskConical } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const navItems = [
   { label: "Dashboard",    href: "/",             icon: LayoutDashboard, index: "01" },
   { label: "All Analyses", href: "/analysis",     icon: FileBarChart2,   index: "02" },
   { label: "New Analysis", href: "/analysis/new", icon: PlusCircle,      index: "03" },
+  { label: "Research",     href: "/research",     icon: FlaskConical,    index: "04" },
 ];
 
 interface SidebarProps {
