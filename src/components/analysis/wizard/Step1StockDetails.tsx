@@ -63,7 +63,7 @@ export function Step1StockDetails({ data, onNext }: Step1Props) {
           <Select
             value={SECTORS.includes(watch("sector") as typeof SECTORS[number]) ? watch("sector") : "Others"}
             onValueChange={(v) => {
-              if (v !== "Others") setValue("sector", v, { shouldValidate: true });
+              if (v !== "Others") setValue("sector", v ?? "", { shouldValidate: true });
               else setValue("sector", "", { shouldValidate: false });
             }}
           >
