@@ -207,7 +207,7 @@ export async function createAnalysis(data: any, status: "draft" | "published" = 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function updateAnalysis(id: string, data: any, status: "draft" | "published" = "draft") {
   await connectDB();
-  await Analysis.findByIdAndUpdate(id, buildAnalysisData(data, status), { new: true });
+  await Analysis.findByIdAndUpdate(id, buildAnalysisData(data, status), { returnDocument: "after" });
   revalidatePath("/");
   revalidatePath("/analysis");
   revalidatePath(`/analysis/${id}`);

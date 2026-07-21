@@ -124,7 +124,7 @@ export async function getStockResearch(rawSymbol: string) {
     aiInsights: aiData.aiInsights,
   };
 
-  await StockResearch.findOneAndUpdate({ symbol }, doc, { upsert: true, new: true });
+  await StockResearch.findOneAndUpdate({ symbol }, doc, { upsert: true, returnDocument: "after" });
   return JSON.parse(JSON.stringify({ ...doc, historical: aiData.historical }));
 }
 
@@ -285,7 +285,7 @@ async function fetchFromYahoo(symbol: string) {
     aiInsights:  [],
   };
 
-  await StockResearch.findOneAndUpdate({ symbol }, doc, { upsert: true, new: true });
+  await StockResearch.findOneAndUpdate({ symbol }, doc, { upsert: true, returnDocument: "after" });
 
   return JSON.parse(JSON.stringify({ ...doc, historical: historicalForChart }));
 }

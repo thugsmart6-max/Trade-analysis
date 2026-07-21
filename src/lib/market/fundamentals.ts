@@ -1,11 +1,17 @@
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function calcFundamentals(summary: any) {
-  const fd  = summary?.financialData      ?? {};
+  const fd  = summary?.financialData        ?? {};
   const ks  = summary?.defaultKeyStatistics ?? {};
-  const sd  = summary?.summaryDetail      ?? {};
-  const is  = summary?.incomeStatementHistory?.incomeStatementHistory?.[0] ?? {};
-  const bs  = summary?.balanceSheetHistory?.balanceSheetHistory?.[0]       ?? {};
-  const cf  = summary?.cashflowStatementHistory?.cashflowStatementHistory?.[0] ?? {};
+  const sd  = summary?.summaryDetail        ?? {};
+  const mh  = summary?.majorHoldersBreakdown ?? {};
+  // financialData gives us most ratios; income/balance/cashflow modules are
+  // sparse since Nov 2024, so fall back to empty record rather than erroring.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const is: Record<string, any> = {};
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const bs: Record<string, any> = {};
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const cf: Record<string, any> = {};
 
   // Helper for safe division
   const div = (a: number | null, b: number | null) =>
@@ -66,9 +72,9 @@ export function calcFundamentals(summary: any) {
   const revenueGrowth   = n(fd.revenueGrowth);
   const earningsGrowth  = n(fd.earningsGrowth);
 
-  // Holding data (unavailable via Yahoo, return null)
-  const promoterHolding     = null;
-  const institutionalHolding = n(ks.heldPercentInstitutions);
+  // Holding data from majorHoldersBreakdown (insiders = promoters approx.)
+  const promoterHolding      = n(mh.insidersPercentHeld);
+  const institutionalHolding = n(mh.institutionsPercentHeld) ?? n(ks.heldPercentInstitutions);
   const publicHolding       = null;
 
   return {
