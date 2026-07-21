@@ -5,7 +5,7 @@ const client = new OpenAI({
   apiKey: process.env.OPENROUTER_API_KEY ?? "",
 });
 
-const MODEL = process.env.OPENROUTER_MODEL ?? "google/gemini-2.0-flash-001";
+const MODEL = process.env.OPENROUTER_MODEL ?? "google/gemini-2.5-flash";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function generateInsights(stockName: string, symbol: string, data: any): Promise<string> {

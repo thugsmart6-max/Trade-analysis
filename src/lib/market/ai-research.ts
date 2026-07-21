@@ -5,7 +5,7 @@ const client = new OpenAI({
   apiKey:  process.env.OPENROUTER_API_KEY ?? "",
 });
 
-const MODEL = process.env.OPENROUTER_MODEL ?? "google/gemini-2.0-flash-001";
+const MODEL = process.env.OPENROUTER_MODEL ?? "google/gemini-2.5-flash";
 
 export interface AIStockData {
   name:     string;
@@ -241,13 +241,24 @@ Return this exact JSON structure:
 
   const response = await client.chat.completions.create({
     model: MODEL,
-    messages: [{ role: "user", content: prompt }],
+    messages: [
+      {
+        role: "system",
+        content: "You are a financial data API. Always respond with pure JSON only — no markdown, no code fences, no explanation. Start your response directly with '{' and end with '}'.",
+      },
+      { role: "user", content: prompt },
+    ],
     max_tokens: 3000,
     temperature: 0.2,
-    response_format: { type: "json_object" },
   });
 
-  const raw = response.choices[0]?.message?.content ?? "{}";
+  const rawContent = response.choices[0]?.message?.content ?? "{}";
+  // Strip markdown code fences if the model added them despite instructions
+  const raw = rawContent
+    .replace(/^```json\s*/i, "")
+    .replace(/^```\s*/i, "")
+    .replace(/\s*```$/i, "")
+    .trim();
   const parsed = JSON.parse(raw);
 
   const price = parsed.overview?.currentPrice ?? 100;
