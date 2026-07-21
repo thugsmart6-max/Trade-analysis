@@ -60,7 +60,13 @@ export function Step1StockDetails({ data, onNext }: Step1Props) {
 
         <div>
           <label className={labelCls}>Sector *</label>
-          <Select value={watch("sector")} onValueChange={(v) => setValue("sector", v ?? "", { shouldValidate: true })}>
+          <Select
+            value={SECTORS.includes(watch("sector") as typeof SECTORS[number]) ? watch("sector") : "Others"}
+            onValueChange={(v) => {
+              if (v !== "Others") setValue("sector", v, { shouldValidate: true });
+              else setValue("sector", "", { shouldValidate: false });
+            }}
+          >
             <SelectTrigger className="bg-accent border-border text-muted-foreground h-10 rounded-lg font-mono text-sm">
               <SelectValue placeholder="Select sector" />
             </SelectTrigger>
@@ -70,6 +76,15 @@ export function Step1StockDetails({ data, onNext }: Step1Props) {
               ))}
             </SelectContent>
           </Select>
+          {/* Custom sector input when "Others" is selected */}
+          {(!SECTORS.includes(watch("sector") as typeof SECTORS[number]) || watch("sector") === "") && (
+            <Input
+              className={`${inputCls} mt-2`}
+              placeholder="Type your sector name..."
+              value={watch("sector")}
+              onChange={(e) => setValue("sector", e.target.value, { shouldValidate: true })}
+            />
+          )}
           {errors.sector && <p className={errCls}>{errors.sector.message}</p>}
         </div>
 
