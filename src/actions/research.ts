@@ -82,6 +82,14 @@ export async function searchStocksAction(query: string) {
   ).slice(0, 8);
 }
 
+// ─── Force refresh — deletes cache then re-fetches ──────────────────────────
+export async function refreshStockResearch(rawSymbol: string) {
+  const symbol = toNSE(rawSymbol.trim().toUpperCase());
+  await connectDB();
+  await StockResearch.deleteOne({ symbol });
+  return getStockResearch(rawSymbol);
+}
+
 // ─── Main fetch: real Yahoo Finance data ────────────────────────────────────
 export async function getStockResearch(rawSymbol: string) {
   const symbol = toNSE(rawSymbol.trim().toUpperCase());

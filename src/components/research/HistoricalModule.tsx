@@ -83,23 +83,25 @@ export function HistoricalModule({ data, historical }: { data: any; historical: 
       {/* Performance table */}
       <div>
         <p className="text-muted-foreground font-mono text-[10px] uppercase tracking-widest mb-3">Price Performance</p>
-        <div className="bg-background border border-border rounded-xl overflow-hidden">
-          <div className="grid grid-cols-3 px-4 py-2 border-b border-border">
-            <span className="text-muted-foreground/50 font-mono text-[9px] uppercase tracking-widest">Period</span>
-            <span className="text-muted-foreground/50 font-mono text-[9px] uppercase tracking-widest text-right">Change</span>
-            <span className="text-muted-foreground/50 font-mono text-[9px] uppercase tracking-widest text-right">Price Then</span>
+        <div className="overflow-x-auto rounded-xl border border-border">
+          <div className="min-w-[280px] bg-background">
+            <div className="grid grid-cols-3 px-4 py-2 border-b border-border">
+              <span className="text-muted-foreground/50 font-mono text-[9px] uppercase tracking-widest">Period</span>
+              <span className="text-muted-foreground/50 font-mono text-[9px] uppercase tracking-widest text-right">Change</span>
+              <span className="text-muted-foreground/50 font-mono text-[9px] uppercase tracking-widest text-right">Price Then</span>
+            </div>
+            {perfRows.map(({ label, days }) => {
+              const pct = pctChange(historical, days);
+              const old = historical.length > days ? historical[historical.length - 1 - days]?.close : null;
+              return (
+                <div key={label} className="grid grid-cols-3 px-4 py-2.5 border-b border-border last:border-0">
+                  <span className="text-foreground font-mono text-xs">{label}</span>
+                  <span className="text-right"><PctBadge value={pct} /></span>
+                  <span className="text-right text-muted-foreground font-mono text-xs">{old ? `₹${old.toFixed(2)}` : "—"}</span>
+                </div>
+              );
+            })}
           </div>
-          {perfRows.map(({ label, days }) => {
-            const pct = pctChange(historical, days);
-            const old = historical.length > days ? historical[historical.length - 1 - days]?.close : null;
-            return (
-              <div key={label} className="grid grid-cols-3 px-4 py-2.5 border-b border-border last:border-0">
-                <span className="text-foreground font-mono text-xs">{label}</span>
-                <span className="text-right"><PctBadge value={pct} /></span>
-                <span className="text-right text-muted-foreground font-mono text-xs">{old ? `₹${old.toFixed(2)}` : "—"}</span>
-              </div>
-            );
-          })}
         </div>
       </div>
 
@@ -107,20 +109,22 @@ export function HistoricalModule({ data, historical }: { data: any; historical: 
       {yearly.length > 0 && (
         <div>
           <p className="text-muted-foreground font-mono text-[10px] uppercase tracking-widest mb-3">Yearly Price Range</p>
-          <div className="bg-background border border-border rounded-xl overflow-hidden">
-            <div className="grid grid-cols-4 px-4 py-2 border-b border-border">
-              {["Year", "High", "Low", "Year Close"].map((h) => (
-                <span key={h} className="text-muted-foreground/50 font-mono text-[9px] uppercase tracking-widest">{h}</span>
+          <div className="overflow-x-auto rounded-xl border border-border">
+            <div className="min-w-[320px] bg-background">
+              <div className="grid grid-cols-4 px-4 py-2 border-b border-border">
+                {["Year", "High", "Low", "Year Close"].map((h) => (
+                  <span key={h} className="text-muted-foreground/50 font-mono text-[9px] uppercase tracking-widest">{h}</span>
+                ))}
+              </div>
+              {yearly.slice(-6).reverse().map(({ year, high, low, close }) => (
+                <div key={year} className="grid grid-cols-4 px-4 py-2.5 border-b border-border last:border-0">
+                  <span className="text-foreground font-mono text-xs font-bold">{year}</span>
+                  <span className="text-[#00D4AA] font-mono text-xs">₹{high.toFixed(2)}</span>
+                  <span className="text-[#FF4D6A] font-mono text-xs">₹{low.toFixed(2)}</span>
+                  <span className="text-foreground font-mono text-xs">₹{close.toFixed(2)}</span>
+                </div>
               ))}
             </div>
-            {yearly.slice(-6).reverse().map(({ year, high, low, close }) => (
-              <div key={year} className="grid grid-cols-4 px-4 py-2.5 border-b border-border last:border-0">
-                <span className="text-foreground font-mono text-xs font-bold">{year}</span>
-                <span className="text-[#00D4AA] font-mono text-xs">₹{high.toFixed(2)}</span>
-                <span className="text-[#FF4D6A] font-mono text-xs">₹{low.toFixed(2)}</span>
-                <span className="text-foreground font-mono text-xs">₹{close.toFixed(2)}</span>
-              </div>
-            ))}
           </div>
         </div>
       )}

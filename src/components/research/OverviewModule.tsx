@@ -80,9 +80,9 @@ export function OverviewModule({ data, historical }: { data: any; historical: an
       {/* Key stats grid */}
       <div>
         <p className="text-muted-foreground font-mono text-[10px] uppercase tracking-widest mb-3">Key Statistics</p>
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-0 border border-border rounded-xl overflow-hidden">
-          {stats.map(({ label, value }, i) => (
-            <div key={label} className={`flex items-center justify-between px-4 py-2.5 border-b border-r border-border ${i % 3 === 2 ? "border-r-0" : ""} last:border-b-0`}>
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-0 border border-border rounded-xl overflow-hidden divide-y divide-border">
+          {stats.map(({ label, value }) => (
+            <div key={label} className="flex items-center justify-between px-4 py-2.5">
               <span className="text-muted-foreground font-mono text-[10px] uppercase tracking-widest">{label}</span>
               <span className="text-foreground font-mono text-xs font-bold">{value}</span>
             </div>

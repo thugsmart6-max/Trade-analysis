@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowLeft, TrendingUp, TrendingDown, Sparkles, ExternalLink, GitCompare, Info } from "lucide-react";
+import { ArrowLeft, TrendingUp, TrendingDown, Sparkles, ExternalLink, GitCompare, Info, RefreshCw } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { refreshStockResearch } from "@/actions/research";
 import { OverviewModule }     from "./OverviewModule";
 import { TechnicalModule }    from "./TechnicalModule";
 import { FundamentalModule }  from "./FundamentalModule";
@@ -27,6 +28,14 @@ const TABS = [
 export function ResearchTerminal({ data }: { data: any }) {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState("overview");
+  const [isPending, startTransition] = useTransition();
+
+  function handleRefresh() {
+    startTransition(async () => {
+      await refreshStockResearch(ov.symbol ?? "");
+      router.refresh();
+    });
+  }
 
   const ov = data?.overview ?? {};
   const isAI = !ov.dataSource || ov.dataSource === "ai";
@@ -58,20 +67,29 @@ export function ResearchTerminal({ data }: { data: any }) {
 
       {/* Stock Header */}
       <div className="bg-card border border-border rounded-xl overflow-hidden">
-        <div className="px-5 py-3 border-b border-border flex items-center gap-3">
-          <button onClick={() => router.back()} className="text-muted-foreground hover:text-foreground transition-colors">
+        <div className="px-4 md:px-5 py-3 border-b border-border flex items-center gap-2 md:gap-3">
+          <button onClick={() => router.back()} className="text-muted-foreground hover:text-foreground transition-colors shrink-0">
             <ArrowLeft className="w-4 h-4" />
           </button>
-          <span className="text-muted-foreground font-mono text-[10px] uppercase tracking-widest">Stock Research Terminal</span>
-          <div className="ml-auto flex items-center gap-2">
+          <span className="text-muted-foreground font-mono text-[10px] uppercase tracking-widest truncate">Stock Research Terminal</span>
+          <div className="ml-auto flex items-center gap-1.5 shrink-0">
+            <button
+              onClick={handleRefresh}
+              disabled={isPending}
+              title="Refresh live data"
+              className="flex items-center gap-1.5 h-7 px-2.5 bg-accent border border-border rounded-lg text-[10px] font-mono text-muted-foreground hover:text-[#F0B429] hover:border-[#F0B429]/30 transition-colors disabled:opacity-50"
+            >
+              <RefreshCw className={`w-3 h-3 ${isPending ? "animate-spin" : ""}`} />
+              <span className="hidden sm:inline">{isPending ? "Updating…" : "Refresh"}</span>
+            </button>
             <Link href={`/research/compare?symbols=${ov.symbol?.replace(".NS","")}`}>
-              <button className="flex items-center gap-1.5 h-7 px-3 bg-accent border border-border rounded-lg text-[10px] font-mono text-muted-foreground hover:text-[#F0B429] hover:border-[#F0B429]/30 transition-colors">
+              <button className="hidden sm:flex items-center gap-1.5 h-7 px-2.5 bg-accent border border-border rounded-lg text-[10px] font-mono text-muted-foreground hover:text-[#F0B429] hover:border-[#F0B429]/30 transition-colors">
                 <GitCompare className="w-3 h-3" /> Compare
               </button>
             </Link>
             {ov.website && (
               <a href={ov.website} target="_blank" rel="noopener noreferrer">
-                <button className="flex items-center gap-1.5 h-7 px-3 bg-accent border border-border rounded-lg text-[10px] font-mono text-muted-foreground hover:text-[#F0B429] hover:border-[#F0B429]/30 transition-colors">
+                <button className="hidden md:flex items-center gap-1.5 h-7 px-2.5 bg-accent border border-border rounded-lg text-[10px] font-mono text-muted-foreground hover:text-[#F0B429] hover:border-[#F0B429]/30 transition-colors">
                   <ExternalLink className="w-3 h-3" /> Website
                 </button>
               </a>
@@ -79,27 +97,29 @@ export function ResearchTerminal({ data }: { data: any }) {
           </div>
         </div>
 
-        <div className="px-5 py-4 flex flex-wrap items-start gap-4 justify-between">
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-xl bg-[#F0B429]/10 border border-[#F0B429]/20 flex items-center justify-center shrink-0">
-              <span className="text-[#F0B429] font-black text-sm">{(ov.symbol ?? "??").slice(0, 3)}</span>
+        <div className="px-4 md:px-5 py-4 flex flex-col sm:flex-row sm:items-start gap-4 sm:justify-between">
+          {/* Left — logo + name */}
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 md:w-12 md:h-12 rounded-xl bg-[#F0B429]/10 border border-[#F0B429]/20 flex items-center justify-center shrink-0">
+              <span className="text-[#F0B429] font-black text-xs md:text-sm">{(ov.symbol ?? "??").slice(0, 3)}</span>
             </div>
-            <div>
-              <h1 className="font-display text-foreground text-xl font-bold">{ov.name}</h1>
-              <div className="flex flex-wrap items-center gap-2 mt-1">
+            <div className="min-w-0">
+              <h1 className="font-display text-foreground text-lg md:text-xl font-bold truncate">{ov.name}</h1>
+              <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
                 <span className="text-muted-foreground font-mono text-[10px]">{ov.symbol}</span>
                 {ov.exchange && <span className="text-muted-foreground font-mono text-[10px]">· {ov.exchange}</span>}
-                {ov.sector   && <span className="text-muted-foreground font-mono text-[10px]">· {ov.sector}</span>}
+                {ov.sector   && <span className="text-muted-foreground font-mono text-[10px] hidden sm:inline">· {ov.sector}</span>}
               </div>
             </div>
           </div>
 
-          <div className="flex items-end gap-4">
+          {/* Right — price */}
+          <div className="flex items-end justify-between sm:flex-col sm:items-end gap-2">
             <div>
-              <p className="font-display text-3xl font-bold text-foreground">
+              <p className="font-display text-2xl md:text-3xl font-bold text-foreground">
                 ₹{(ov.currentPrice ?? 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}
               </p>
-              <div className="flex items-center gap-1.5 mt-1" style={{ color }}>
+              <div className="flex items-center gap-1.5 mt-0.5" style={{ color }}>
                 <TIcon className="w-3.5 h-3.5" />
                 <span className="font-mono text-sm font-bold">
                   {isUp ? "+" : ""}{(ov.priceChange ?? 0).toFixed(2)} ({isUp ? "+" : ""}{((ov.priceChangePct ?? 0) * 100).toFixed(2)}%)
@@ -107,8 +127,8 @@ export function ResearchTerminal({ data }: { data: any }) {
               </div>
             </div>
             <div className="text-right">
-              {ov.weekHigh52 && <p className="text-[10px] font-mono text-muted-foreground">52W H: <span className="text-foreground">₹{ov.weekHigh52.toLocaleString("en-IN")}</span></p>}
-              {ov.weekLow52  && <p className="text-[10px] font-mono text-muted-foreground">52W L: <span className="text-foreground">₹{ov.weekLow52.toLocaleString("en-IN")}</span></p>}
+              {ov.weekHigh52 && <p className="text-[10px] font-mono text-muted-foreground">52W H: <span className="text-foreground">₹{Number(ov.weekHigh52).toLocaleString("en-IN")}</span></p>}
+              {ov.weekLow52  && <p className="text-[10px] font-mono text-muted-foreground">52W L: <span className="text-foreground">₹{Number(ov.weekLow52).toLocaleString("en-IN")}</span></p>}
             </div>
           </div>
         </div>
@@ -116,7 +136,7 @@ export function ResearchTerminal({ data }: { data: any }) {
 
       {/* Tab Bar */}
       <div className="bg-card border border-border rounded-xl overflow-hidden">
-        <div className="flex overflow-x-auto border-b border-border">
+        <div className="flex overflow-x-auto border-b border-border [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
           {TABS.map((tab) => (
             <button
               key={tab.id}
@@ -145,7 +165,7 @@ export function ResearchTerminal({ data }: { data: any }) {
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -8 }}
             transition={{ duration: 0.18 }}
-            className="p-5"
+            className="p-3 md:p-5"
           >
             {activeTab === "overview"    && <OverviewModule    data={data} historical={historical} />}
             {activeTab === "technical"   && <TechnicalModule   data={data} historical={historical} />}

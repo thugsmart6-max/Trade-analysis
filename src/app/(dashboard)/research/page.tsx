@@ -17,9 +17,9 @@ const FEATURES = [
 
 export default function ResearchPage() {
   return (
-    <div className="p-4 md:p-8 max-w-5xl mx-auto">
+    <div className="p-4 md:p-8 max-w-5xl mx-auto w-full">
       {/* Header */}
-      <div className="text-center mb-10">
+      <div className="text-center mb-8 md:mb-10">
         <span className="text-muted-foreground font-mono text-[10px] uppercase tracking-widest block mb-3">
           Stock Research Platform
         </span>
