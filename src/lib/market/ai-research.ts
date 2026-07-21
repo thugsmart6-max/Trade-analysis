@@ -1,9 +1,13 @@
 import OpenAI from "openai";
 
-const client = new OpenAI({
-  baseURL: "https://openrouter.ai/api/v1",
-  apiKey:  process.env.OPENROUTER_API_KEY ?? "",
-});
+// Lazy-initialize so the constructor is never called at module-evaluation time
+// (Vercel build collects page data without runtime env vars set)
+function getClient() {
+  return new OpenAI({
+    baseURL: "https://openrouter.ai/api/v1",
+    apiKey:  process.env.OPENROUTER_API_KEY ?? "placeholder",
+  });
+}
 
 const MODEL = process.env.OPENROUTER_MODEL ?? "google/gemini-2.5-flash";
 
@@ -239,7 +243,7 @@ Return this exact JSON structure:
   "historical": []
 }`;
 
-  const response = await client.chat.completions.create({
+  const response = await getClient().chat.completions.create({
     model: MODEL,
     messages: [
       {

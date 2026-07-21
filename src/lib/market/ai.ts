@@ -1,9 +1,11 @@
 import OpenAI from "openai";
 
-const client = new OpenAI({
-  baseURL: "https://openrouter.ai/api/v1",
-  apiKey: process.env.OPENROUTER_API_KEY ?? "",
-});
+function getClient() {
+  return new OpenAI({
+    baseURL: "https://openrouter.ai/api/v1",
+    apiKey:  process.env.OPENROUTER_API_KEY ?? "placeholder",
+  });
+}
 
 const MODEL = process.env.OPENROUTER_MODEL ?? "google/gemini-2.5-flash";
 
@@ -23,7 +25,7 @@ ${JSON.stringify(data, null, 2)}
 
 Generate a 400-600 word professional research note:`;
 
-  const response = await client.chat.completions.create({
+  const response = await getClient().chat.completions.create({
     model: MODEL,
     messages: [{ role: "user", content: prompt }],
     max_tokens: 800,
