@@ -29,7 +29,7 @@ export function ResearchTerminal({ data }: { data: any }) {
   const [activeTab, setActiveTab] = useState("overview");
 
   const ov = data?.overview ?? {};
-  const isAI = ov.dataSource === "ai";
+  const isAI = !ov.dataSource || ov.dataSource === "ai";
   const isUp = (ov.priceChange ?? 0) >= 0;
   const TIcon = isUp ? TrendingUp : TrendingDown;
   const color = isUp ? "#00D4AA" : "#FF4D6A";
@@ -42,14 +42,14 @@ export function ResearchTerminal({ data }: { data: any }) {
 
   return (
     <div className="space-y-4">
-      {/* AI Data Source Banner */}
+      {/* Data source banner — only shown when Yahoo Finance is unavailable and AI is used */}
       {isAI && (
-        <div className="flex items-start gap-2.5 px-4 py-3 bg-[#F0B429]/6 border border-[#F0B429]/20 rounded-xl">
-          <Sparkles className="w-3.5 h-3.5 text-[#F0B429] mt-0.5 shrink-0" />
+        <div className="flex items-start gap-2.5 px-4 py-3 bg-[#FF8C42]/6 border border-[#FF8C42]/20 rounded-xl">
+          <Sparkles className="w-3.5 h-3.5 text-[#FF8C42] mt-0.5 shrink-0" />
           <div className="flex-1 min-w-0">
-            <p className="text-[#F0B429] text-[10px] font-mono font-semibold uppercase tracking-widest mb-0.5">AI-Generated Data</p>
+            <p className="text-[#FF8C42] text-[10px] font-mono font-semibold uppercase tracking-widest mb-0.5">AI-Estimated Data — Live market feed unavailable</p>
             <p className="text-muted-foreground text-[10px] font-mono leading-relaxed">
-              {ov.dataNote ?? "Data is AI-estimated based on training knowledge. Prices and ratios are approximate, not real-time."}
+              Prices, ratios, and indicators are AI-estimated from training knowledge — not real-time. Actual market values may differ significantly.
             </p>
           </div>
           <Info className="w-3.5 h-3.5 text-muted-foreground/40 mt-0.5 shrink-0" />
