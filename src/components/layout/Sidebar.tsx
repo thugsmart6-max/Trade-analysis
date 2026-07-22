@@ -4,14 +4,16 @@ import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { LayoutDashboard, FileBarChart2, PlusCircle, ChevronLeft, ChevronRight, X, FlaskConical } from "lucide-react";
+import { LayoutDashboard, FileBarChart2, PlusCircle, ChevronLeft, ChevronRight, X, FlaskConical, Crosshair, GitCompare } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const navItems = [
-  { label: "Dashboard",    href: "/",             icon: LayoutDashboard, index: "01" },
-  { label: "All Analyses", href: "/analysis",     icon: FileBarChart2,   index: "02" },
-  { label: "New Analysis", href: "/analysis/new", icon: PlusCircle,      index: "03" },
-  { label: "Research",     href: "/research",     icon: FlaskConical,    index: "04" },
+  { label: "Dashboard",    href: "/",                   icon: LayoutDashboard, index: "01" },
+  { label: "All Analyses", href: "/analysis",           icon: FileBarChart2,   index: "02" },
+  { label: "New Analysis", href: "/analysis/new",       icon: PlusCircle,      index: "03" },
+  { label: "Research",     href: "/research",           icon: FlaskConical,    index: "04" },
+  { label: "Scanners",     href: "/research/scanners",  icon: Crosshair,       index: "05" },
+  { label: "Compare",      href: "/research/compare",   icon: GitCompare,      index: "06" },
 ];
 
 interface SidebarProps {
@@ -24,7 +26,14 @@ function NavItems({ collapsed, onClose }: { collapsed: boolean; onClose?: () => 
   return (
     <nav className="flex-1 py-4 space-y-0.5 px-2">
       {navItems.map((item) => {
-        const isActive = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
+        let isActive = false;
+        if (item.href === "/") {
+          isActive = pathname === "/";
+        } else if (item.href === "/research") {
+          isActive = pathname === "/research" || /^\/research\/[^/]+$/.test(pathname);
+        } else {
+          isActive = pathname === item.href || pathname.startsWith(item.href + "/");
+        }
         return (
           <Link
             key={item.href}

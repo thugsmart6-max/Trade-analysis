@@ -106,67 +106,13 @@ export function calcFibonacci(data: OHLCV[]) {
   };
 }
 
+/** @deprecated Prefer calcMultiLevelSR from levels.ts — kept for chart ReferenceLine fallback */
 export function calcSupportResistance(data: OHLCV[]) {
   const d = data.slice(-60);
   if (d.length < 5) return { support: null, resistance: null };
   const highs60 = d.map((x) => x.high);
   const lows60  = d.map((x) => x.low);
-  const resistance = Math.max(...highs60);
-  const support    = Math.min(...lows60);
-  return { support, resistance };
-}
-
-export function detectCandlePattern(data: OHLCV[]): string[] {
-  const patterns: string[] = [];
-  if (data.length < 3) return patterns;
-  const [prev2, prev, curr] = data.slice(-3);
-
-  // Doji
-  const bodySize = Math.abs(curr.close - curr.open);
-  const range    = curr.high - curr.low;
-  if (range > 0 && bodySize / range < 0.1) patterns.push("Doji");
-
-  // Hammer
-  const lowerWick  = Math.min(curr.open, curr.close) - curr.low;
-  const upperWick  = curr.high - Math.max(curr.open, curr.close);
-  if (lowerWick > 2 * bodySize && upperWick < bodySize) patterns.push("Hammer");
-
-  // Shooting Star
-  if (upperWick > 2 * bodySize && lowerWick < bodySize) patterns.push("Shooting Star");
-
-  // Bullish Engulfing
-  if (
-    prev.close < prev.open &&
-    curr.close > curr.open &&
-    curr.open < prev.close &&
-    curr.close > prev.open
-  ) patterns.push("Bullish Engulfing");
-
-  // Bearish Engulfing
-  if (
-    prev.close > prev.open &&
-    curr.close < curr.open &&
-    curr.open > prev.close &&
-    curr.close < prev.open
-  ) patterns.push("Bearish Engulfing");
-
-  // Morning Star (3-candle)
-  if (
-    prev2.close < prev2.open &&
-    Math.abs(prev.close - prev.open) < (prev2.open - prev2.close) * 0.3 &&
-    curr.close > curr.open &&
-    curr.close > (prev2.open + prev2.close) / 2
-  ) patterns.push("Morning Star");
-
-  // Evening Star
-  if (
-    prev2.close > prev2.open &&
-    Math.abs(prev.close - prev.open) < (prev2.close - prev2.open) * 0.3 &&
-    curr.close < curr.open &&
-    curr.close < (prev2.open + prev2.close) / 2
-  ) patterns.push("Evening Star");
-
-  return patterns;
+  return { support: Math.min(...lows60), resistance: Math.max(...highs60) };
 }
 
 export function calcOBV(data: OHLCV[]) {
@@ -213,10 +159,8 @@ export function calcAllIndicators(data: OHLCV[]) {
   const stoch  = calcStoch(data);
   const cci    = calcCCI(data);
   const obv    = calcOBV(data);
-  const candles = detectCandlePattern(data);
   const currentPrice = data.length ? data[data.length - 1].close : null;
 
-  // Trend detection
   let trend = "Neutral";
   if (sma20 && sma50 && currentPrice) {
     if (currentPrice > sma20 && sma20 > sma50) trend = "Uptrend";
@@ -224,28 +168,24 @@ export function calcAllIndicators(data: OHLCV[]) {
     else trend = "Sideways";
   }
 
-  // Golden / Death Cross
   let cross = "None";
   if (sma50 && sma200) {
     if (sma50 > sma200) cross = "Golden Cross";
     else cross = "Death Cross";
   }
 
-  // RSI signal
   let rsiSignal = "Neutral";
   if (rsi !== null) {
     if (rsi > 70) rsiSignal = "Overbought";
     else if (rsi < 30) rsiSignal = "Oversold";
   }
 
-  // MACD signal
   let macdSignal = "Neutral";
   if (macd) {
     if ((macd.MACD ?? 0) > (macd.signal ?? 0)) macdSignal = "Bullish";
     else macdSignal = "Bearish";
   }
 
-  // Bollinger signal
   let bbSignal = "Mid";
   if (bb && currentPrice) {
     if (currentPrice > bb.upper) bbSignal = "Above Upper Band";
@@ -265,7 +205,6 @@ export function calcAllIndicators(data: OHLCV[]) {
     supportResistance: sr,
     stochastic: stoch,
     cci, obv,
-    candlePatterns: candles,
     trend, crossSignal: cross,
     currentPrice,
   };
@@ -374,37 +313,17 @@ export function calcSignalStats(data: OHLCV[]) {
   return results;
 }
 
-// Chart pattern detection stats
+/** Chart pattern occurrence stats — uses detectChartPatterns from patterns.ts */
 export function calcPatternStats(data: OHLCV[]) {
-  if (data.length < 30) return [];
-  const patternList = [
-    "Doji", "Hammer", "Shooting Star",
-    "Bullish Engulfing", "Bearish Engulfing",
-    "Morning Star", "Evening Star",
-  ];
-
-  return patternList.map((pattern) => {
-    let occurrences = 0, successes = 0, totalReturn = 0, totalDays = 0;
-    for (let i = 3; i < data.length - 5; i++) {
-      const detected = detectCandlePattern(data.slice(0, i + 1));
-      if (!detected.includes(pattern)) continue;
-      occurrences++;
-      const entry  = data[i].close;
-      const exit5  = data[i + 5].close;
-      const pct    = ((exit5 - entry) / entry) * 100;
-      const bullish = ["Hammer", "Bullish Engulfing", "Morning Star"].includes(pattern);
-      if (bullish ? pct > 0 : pct < 0) successes++;
-      totalReturn += Math.abs(pct);
-      totalDays   += 5;
-    }
-    return {
-      pattern,
-      occurrences,
-      successfulBreakouts: successes,
-      failedBreakouts: occurrences - successes,
-      successPercent: occurrences ? Math.round((successes / occurrences) * 100) : 0,
-      avgReturn: occurrences ? parseFloat((totalReturn / occurrences).toFixed(2)) : 0,
-      avgDuration: occurrences ? Math.round(totalDays / occurrences) : 0,
-    };
-  });
+  // Deferred to patterns module at action layer; keep empty stub for backward compat
+  void data;
+  return [] as Array<{
+    pattern: string;
+    occurrences: number;
+    successfulBreakouts: number;
+    failedBreakouts: number;
+    successPercent: number;
+    avgReturn: number;
+    avgDuration: number;
+  }>;
 }

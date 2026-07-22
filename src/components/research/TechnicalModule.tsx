@@ -73,9 +73,9 @@ export function TechnicalModule({ data, historical }: { data: any; historical: a
         <Section title="Trend & Crossover">
           <Row label="Trend"         value={tech.trend ?? "—"}       badge={tech.trend}       badgeColor={trendColor} />
           <Row label="MA Crossover"  value={tech.crossSignal ?? "—"} badge={tech.crossSignal === "Golden Cross" ? "Golden" : "Death"} badgeColor={tech.crossSignal === "Golden Cross" ? "#00D4AA" : "#FF4D6A"} />
-          <Row label="Candle Patterns" value={(tech.candlePatterns ?? []).join(", ") || "None"} />
-          <Row label="Support"       value={inr(sr.support)} />
-          <Row label="Resistance"    value={inr(sr.resistance)} />
+          <Row label="Chart Patterns" value={((tech.chartPatterns ?? []) as Array<{ pattern: string }>).map((p) => p.pattern).join(", ") || "None"} />
+          <Row label="Support"       value={inr(sr.supports?.[0]?.price ?? sr.support)} />
+          <Row label="Resistance"    value={inr(sr.resistances?.[0]?.price ?? sr.resistance)} />
           <Row label="VWAP"          value={inr(tech.vwap)} />
         </Section>
 

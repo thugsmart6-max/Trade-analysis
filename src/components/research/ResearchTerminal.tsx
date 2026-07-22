@@ -12,6 +12,7 @@ import { FundamentalModule }  from "./FundamentalModule";
 import { HistoricalModule }   from "./HistoricalModule";
 import { PatternStatsModule } from "./PatternStatsModule";
 import { SignalStatsModule }  from "./SignalStatsModule";
+import { FrequencyModule }    from "./FrequencyModule";
 import { AIInsightsModule }   from "./AIInsightsModule";
 
 const TABS = [
@@ -21,6 +22,7 @@ const TABS = [
   { id: "historical",  label: "Historical"  },
   { id: "patterns",    label: "Patterns"    },
   { id: "signals",     label: "Signals"     },
+  { id: "frequency",   label: "Frequency"   },
   { id: "ai",          label: "AI Insights" },
 ];
 
@@ -30,18 +32,18 @@ export function ResearchTerminal({ data }: { data: any }) {
   const [activeTab, setActiveTab] = useState("overview");
   const [isPending, startTransition] = useTransition();
 
+  const ov = data?.overview ?? {};
+  const isAI = !ov.dataSource || ov.dataSource === "ai";
+  const isUp = (ov.priceChange ?? 0) >= 0;
+  const TIcon = isUp ? TrendingUp : TrendingDown;
+  const color = isUp ? "#00D4AA" : "#FF4D6A";
+
   function handleRefresh() {
     startTransition(async () => {
       await refreshStockResearch(ov.symbol ?? "");
       router.refresh();
     });
   }
-
-  const ov = data?.overview ?? {};
-  const isAI = !ov.dataSource || ov.dataSource === "ai";
-  const isUp = (ov.priceChange ?? 0) >= 0;
-  const TIcon = isUp ? TrendingUp : TrendingDown;
-  const color = isUp ? "#00D4AA" : "#FF4D6A";
 
   const historical = (data?.historical ?? []).map((d: { date: string | Date; close: number; volume: number }) => ({
     date:   new Date(d.date).toISOString().split("T")[0],
@@ -173,6 +175,7 @@ export function ResearchTerminal({ data }: { data: any }) {
             {activeTab === "historical"  && <HistoricalModule  data={data} historical={historical} />}
             {activeTab === "patterns"    && <PatternStatsModule data={data} />}
             {activeTab === "signals"     && <SignalStatsModule  data={data} />}
+            {activeTab === "frequency"   && <FrequencyModule    data={data} />}
             {activeTab === "ai"          && <AIInsightsModule   data={data} />}
           </motion.div>
         </AnimatePresence>

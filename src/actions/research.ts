@@ -5,14 +5,21 @@ import StockResearch       from "@/lib/db/models/StockResearch";
 import { toNSE, fetchQuote, fetchSummary, fetchHistorical, searchStocks } from "@/lib/market/yahoo";
 import { calcRSI, calcMACD, calcSMA, calcEMA, calcBollinger, calcADX,
          calcATR, calcVWAP, calcFibonacci, calcSupportResistance,
-         detectCandlePattern, calcOBV, calcStoch, calcCCI,
-         calcSignalStats, calcPatternStats, OHLCV } from "@/lib/market/indicators";
+         calcOBV, calcStoch, calcCCI,
+         calcSignalStats, OHLCV } from "@/lib/market/indicators";
+import { calcMultiLevelSR } from "@/lib/market/levels";
+import { detectChartPatterns, classifyTrend, CHART_PATTERNS } from "@/lib/market/patterns";
+import { recentCrosses, pctChangeSince, CrossType } from "@/lib/market/crossovers";
+import { calcFrequencyAnalysis } from "@/lib/market/frequency";
+import { calcVolumeProfile, matchesVolumeFilter, VolumeFilter } from "@/lib/market/volume";
 import { calcFundamentals } from "@/lib/market/fundamentals";
 import { generateInsights }  from "@/lib/market/ai";
 import { generateStockDataWithAI } from "@/lib/market/ai-research";
 
 const LIVE_TTL_MS = 15 * 60 * 1000;   // 15 min cache for live data
 const AI_TTL_MS  = 12 * 60 * 60 * 1000; // 12 hour cache for AI fallback
+
+export { CHART_PATTERNS };
 
 function isStale(lastFetched: Date | null, ttl: number) {
   if (!lastFetched) return true;
@@ -175,21 +182,19 @@ async function fetchFromYahoo(symbol: string) {
   const atr    = calcATR(historical);
   const vwap   = calcVWAP(historical);
   const fib    = calcFibonacci(historical);
-  const sr     = calcSupportResistance(historical);
-  const candles = detectCandlePattern(historical);
+  const srLegacy = calcSupportResistance(historical);
+  const levels = calcMultiLevelSR(historical);
+  const chartPatterns = detectChartPatterns(historical);
+  const trendLabel = classifyTrend(historical, chartPatterns);
+  const volumeProfile = calcVolumeProfile(historical);
+  const frequencyStats = calcFrequencyAnalysis(historical);
+  const recentCross = recentCrosses(historical, 30);
   const obv    = calcOBV(historical);
   const stoch  = calcStoch(historical);
   const cci    = calcCCI(historical);
 
-  // trend detection
-  const price = Number(q.regularMarketPrice ?? 0);
-  let trend = "Sideways";
-  if (sma50 && sma200) {
-    if (price > sma50 && sma50 > sma200) trend = "Uptrend";
-    else if (price < sma50 && sma50 < sma200) trend = "Downtrend";
-  }
+  const price = Number(q.regularMarketPrice ?? historical[historical.length - 1]?.close ?? 0);
 
-  // cross signal
   let crossSignal = "None";
   if (sma50 && sma200) {
     crossSignal = sma50 > sma200 ? "Golden Cross" : "Death Cross";
@@ -199,8 +204,20 @@ async function fetchFromYahoo(symbol: string) {
   const macdSignal = macd ? (macd.MACD != null && macd.signal != null && macd.MACD > macd.signal ? "Bullish" : "Bearish") : "Neutral";
   const bbSignal   = bb && price ? (price > bb.upper ? "Above Upper Band" : price < bb.lower ? "Below Lower Band" : "Mid") : "Mid";
 
-  const patternStats = calcPatternStats(historical);
   const signalStats  = calcSignalStats(historical);
+  const patternStats = chartPatterns.map((p) => ({
+    pattern: p.pattern,
+    occurrences: 1,
+    successfulBreakouts: 0,
+    failedBreakouts: 0,
+    successPercent: p.historicalSuccessRate ?? 0,
+    avgReturn: 0,
+    avgDuration: 0,
+    confidence: p.confidence,
+    breakoutDirection: p.breakoutDirection,
+    detectionDate: p.detectionDate,
+    historicalSuccessRate: p.historicalSuccessRate,
+  }));
 
   // ── Fundamental data ────────────────────────────────────────────────────
   const fund = calcFundamentals(sum);
@@ -209,7 +226,6 @@ async function fetchFromYahoo(symbol: string) {
   const ap  = (sum as Record<string, unknown>)?.assetProfile as Record<string, unknown> ?? {};
   const sd  = (sum as Record<string, unknown>)?.summaryDetail as Record<string, unknown> ?? {};
   const ks  = (sum as Record<string, unknown>)?.defaultKeyStatistics as Record<string, unknown> ?? {};
-  const fd  = (sum as Record<string, unknown>)?.financialData as Record<string, unknown> ?? {};
   const pr  = (sum as Record<string, unknown>)?.price as Record<string, unknown> ?? {};
 
   const overview = {
@@ -229,8 +245,8 @@ async function fetchFromYahoo(symbol: string) {
     weekLow52:      q.fiftyTwoWeekLow ?? null,
     allTimeHigh:    null,
     marketCap:      q.marketCap ?? pr.marketCap ?? null,
-    volume:         q.regularMarketVolume ?? null,
-    avgVolume:      q.averageDailyVolume3Month ?? null,
+    volume:         q.regularMarketVolume ?? volumeProfile.todayVolume ?? null,
+    avgVolume:      q.averageDailyVolume3Month ?? volumeProfile.avg20 ?? null,
     beta:           q.beta ?? ks.beta ?? null,
     peRatio:        q.trailingPE ?? sd.trailingPE ?? null,
     eps:            q.epsTrailingTwelveMonths ?? null,
@@ -266,17 +282,28 @@ async function fetchFromYahoo(symbol: string) {
 
   const technical = {
     dataSource:  "live",
-    trend, crossSignal,
+    trend: trendLabel,
+    crossSignal,
     rsi, rsiSignal, macdSignal, bbSignal,
-    candlePatterns: candles,
+    chartPatterns,
     currentPrice: price,
     sma:  { sma20, sma50, sma100, sma200 },
     ema:  { ema9, ema21, ema50, ema200 },
     macd, bollingerBands: bb, adx: adxVal,
     atr, vwap, stochastic: stoch, cci, obv,
     fibonacci: fib,
-    supportResistance: sr,
-    signalStats, patternStats,
+    supportResistance: {
+      support: levels.supports[0]?.price ?? srLegacy.support,
+      resistance: levels.resistances[0]?.price ?? srLegacy.resistance,
+      supports: levels.supports,
+      resistances: levels.resistances,
+    },
+    levels,
+    volumeProfile,
+    frequencyStats,
+    recentCrosses: recentCross,
+    signalStats,
+    patternStats,
   };
 
   const doc = {
@@ -331,4 +358,173 @@ export async function getComparisonData(symbols: string[]) {
     symbols.map((s) => getStockResearch(s).catch(() => null))
   );
   return results.filter(Boolean);
+}
+
+// ─── Universe helpers for scanners ──────────────────────────────────────────
+const SCAN_UNIVERSE = [
+  "RELIANCE", "TCS", "INFY", "HDFCBANK", "ICICIBANK", "SBIN", "WIPRO",
+  "BAJFINANCE", "ADANIENT", "MARUTI", "TATAMOTORS", "TATASTEEL", "HCLTECH",
+  "SUNPHARMA", "AXISBANK", "KOTAKBANK", "LTIM", "BAJAJFINSV", "TITAN",
+  "NESTLEIND", "ULTRACEMCO", "ASIANPAINT", "POWERGRID", "NTPC", "ONGC",
+  "COALINDIA", "HINDUNILVR", "ITC", "JSWSTEEL", "DRREDDY", "DIVISLAB",
+  "CIPLA", "EICHERMOT", "HEROMOTOCO", "TECHM", "BRITANNIA", "TATACONSUM",
+  "GRASIM", "BPCL", "IOC",
+];
+
+async function loadUniverse(limit = 40) {
+  await connectDB();
+  const symbols = SCAN_UNIVERSE.slice(0, limit);
+  const cached = await StockResearch.find({
+    symbol: { $in: symbols.map((s) => `${s}.NS`) },
+  }).lean();
+
+  const bySym = new Map(cached.map((d) => [d.symbol, d]));
+  const missing = symbols.filter((s) => !bySym.has(`${s}.NS`));
+
+  const warmed = await Promise.all(
+    missing.slice(0, 8).map((s) => getStockResearch(s).catch(() => null))
+  );
+  for (const w of warmed) {
+    if (w?.symbol) bySym.set(w.symbol, w);
+  }
+
+  return Array.from(bySym.values()).map((d) => JSON.parse(JSON.stringify(d)));
+}
+
+function techOf(d: Record<string, unknown>) {
+  return (d.technical ?? {}) as Record<string, unknown>;
+}
+function ovOf(d: Record<string, unknown>) {
+  return (d.overview ?? {}) as Record<string, unknown>;
+}
+
+/** Trend / chart-pattern filter */
+export async function scanByTrend(trend: string) {
+  const docs = await loadUniverse();
+  return docs
+    .filter((d) => {
+      const t = techOf(d);
+      const label = String(t.trend ?? "");
+      const patterns = (t.chartPatterns as Array<{ pattern: string }> | undefined) ?? [];
+      if (label === trend) return true;
+      return patterns.some((p) => p.pattern === trend);
+    })
+    .map((d) => ({
+      symbol: d.symbol,
+      name: d.name,
+      trend: techOf(d).trend,
+      pattern: ((techOf(d).chartPatterns as Array<{ pattern: string }>) ?? [])[0]?.pattern ?? "—",
+      price: ovOf(d).currentPrice,
+      changePct: ovOf(d).priceChangePct,
+      volume: ovOf(d).volume,
+      rsi: techOf(d).rsi,
+    }));
+}
+
+/** SMA / EMA crossover scanner */
+export async function scanByCross(opts: {
+  crossType: CrossType | "any";
+  lookbackDays: number;
+}) {
+  const docs = await loadUniverse();
+  const results: Array<{
+    symbol: string;
+    name: string;
+    crossType: string;
+    crossDate: string;
+    price: number | null;
+    pctSinceCross: number | null;
+    trend: string;
+    volume: number | null;
+  }> = [];
+
+  for (const d of docs) {
+    const histRaw = (d.historical ?? []) as OHLCV[];
+    if (histRaw.length < 210) {
+      const stored = (techOf(d).recentCrosses as Array<{
+        type: string; date: string; direction: string; index: number; priceAtCross: number;
+      }>) ?? [];
+      const cutoffDate = new Date();
+      cutoffDate.setDate(cutoffDate.getDate() - opts.lookbackDays);
+      for (const c of stored) {
+        if (opts.crossType !== "any" && c.type !== opts.crossType) continue;
+        if (new Date(c.date) < cutoffDate) continue;
+        const price = Number(ovOf(d).currentPrice ?? c.priceAtCross);
+        const pct = c.priceAtCross
+          ? parseFloat((((price - c.priceAtCross) / c.priceAtCross) * 100).toFixed(2))
+          : null;
+        results.push({
+          symbol: String(d.symbol),
+          name: String(d.name),
+          crossType: c.type,
+          crossDate: c.date,
+          price: ovOf(d).currentPrice as number | null,
+          pctSinceCross: pct,
+          trend: String(techOf(d).trend ?? "—"),
+          volume: ovOf(d).volume as number | null,
+        });
+      }
+      continue;
+    }
+
+    const hist = histRaw.map((h) => ({
+      ...h,
+      date: h.date instanceof Date ? h.date : new Date(h.date),
+    }));
+    const crosses = recentCrosses(hist, opts.lookbackDays);
+    for (const c of crosses) {
+      if (opts.crossType !== "any" && c.type !== opts.crossType) continue;
+      results.push({
+        symbol: String(d.symbol),
+        name: String(d.name),
+        crossType: c.type,
+        crossDate: c.date,
+        price: ovOf(d).currentPrice as number | null,
+        pctSinceCross: pctChangeSince(hist, c.index),
+        trend: String(techOf(d).trend ?? "—"),
+        volume: ovOf(d).volume as number | null,
+      });
+    }
+  }
+
+  return results.sort((a, b) => b.crossDate.localeCompare(a.crossDate));
+}
+
+/** Volume scanner */
+export async function scanByVolume(opts: {
+  filter: VolumeFilter;
+  avgPeriod: 20 | 50 | 75 | 100;
+}) {
+  const docs = await loadUniverse();
+  return docs
+    .map((d) => {
+      const vp = (techOf(d).volumeProfile as ReturnType<typeof calcVolumeProfile> | undefined)
+        ?? calcVolumeProfile((d.historical as OHLCV[]) ?? []);
+      return { d, vp };
+    })
+    .filter(({ vp }) => matchesVolumeFilter(vp, opts.filter, opts.avgPeriod))
+    .map(({ d, vp }) => {
+      const avg = opts.avgPeriod === 20 ? vp.avg20
+        : opts.avgPeriod === 50 ? vp.avg50
+        : opts.avgPeriod === 75 ? vp.avg75
+        : vp.avg100;
+      return {
+        symbol: String(d.symbol),
+        name: String(d.name),
+        todayVolume: vp.todayVolume,
+        averageVolume: avg,
+        volumeRatio: avg ? parseFloat((vp.todayVolume / avg).toFixed(2)) : null,
+        increasePct: avg ? parseFloat((((vp.todayVolume - avg) / avg) * 100).toFixed(1)) : null,
+        trend: String(techOf(d).trend ?? "—"),
+        pattern: ((techOf(d).chartPatterns as Array<{ pattern: string }>) ?? [])[0]?.pattern ?? "—",
+        price: ovOf(d).currentPrice as number | null,
+      };
+    })
+    .sort((a, b) => (b.volumeRatio ?? 0) - (a.volumeRatio ?? 0));
+}
+
+/** Ensure universe is warmed (for research hub) */
+export async function warmResearchUniverse() {
+  const docs = await loadUniverse(20);
+  return docs.length;
 }
