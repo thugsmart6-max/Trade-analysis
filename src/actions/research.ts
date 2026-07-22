@@ -520,9 +520,3 @@ export async function scanByVolume(opts: {
     })
     .sort((a, b) => (b.volumeRatio ?? 0) - (a.volumeRatio ?? 0));
 }
-
-/** Ensure universe is warmed (for research hub) */
-export async function warmResearchUniverse() {
-  const docs = await loadUniverse(20);
-  return docs.length;
-}
