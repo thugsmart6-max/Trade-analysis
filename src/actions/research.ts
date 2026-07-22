@@ -3,23 +3,21 @@
 import { connectDB }       from "@/lib/db/connect";
 import StockResearch       from "@/lib/db/models/StockResearch";
 import { toNSE, fetchQuote, fetchSummary, fetchHistorical, searchStocks } from "@/lib/market/yahoo";
-import { calcRSI, calcMACD, calcSMA, calcEMA, calcBollinger, calcADX,
-         calcATR, calcVWAP, calcFibonacci, calcSupportResistance,
-         calcOBV, calcStoch, calcCCI,
-         calcSignalStats, OHLCV } from "@/lib/market/indicators";
-import { calcMultiLevelSR } from "@/lib/market/levels";
-import { detectChartPatterns, classifyTrend, CHART_PATTERNS } from "@/lib/market/patterns";
-import { recentCrosses, pctChangeSince, CrossType } from "@/lib/market/crossovers";
+import { recentCrosses, pctChangeSince, type CrossType } from "@/lib/market/crossovers";
 import { calcFrequencyAnalysis } from "@/lib/market/frequency";
-import { calcVolumeProfile, matchesVolumeFilter, VolumeFilter } from "@/lib/market/volume";
+import { calcVolumeProfile, matchesVolumeFilter, type VolumeFilter } from "@/lib/market/volume";
 import { calcFundamentals } from "@/lib/market/fundamentals";
 import { generateInsights }  from "@/lib/market/ai";
 import { generateStockDataWithAI } from "@/lib/market/ai-research";
+import { calcRSI, calcMACD, calcSMA, calcEMA, calcBollinger, calcADX,
+         calcATR, calcVWAP, calcFibonacci, calcSupportResistance,
+         calcOBV, calcStoch, calcCCI,
+         calcSignalStats, type OHLCV } from "@/lib/market/indicators";
+import { calcMultiLevelSR } from "@/lib/market/levels";
+import { detectChartPatterns, classifyTrend } from "@/lib/market/patterns";
 
 const LIVE_TTL_MS = 15 * 60 * 1000;   // 15 min cache for live data
 const AI_TTL_MS  = 12 * 60 * 60 * 1000; // 12 hour cache for AI fallback
-
-export { CHART_PATTERNS };
 
 function isStale(lastFetched: Date | null, ttl: number) {
   if (!lastFetched) return true;
