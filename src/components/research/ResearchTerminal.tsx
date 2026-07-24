@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { ArrowLeft, TrendingUp, TrendingDown, Sparkles, ExternalLink, GitCompare, Info, RefreshCw, Save, AlertCircle } from "lucide-react";
 import Link from "next/link";
@@ -36,7 +36,6 @@ export function ResearchTerminal({ data }: { data: any }) {
   const [isSaving, setIsSaving] = useState(false);
   const [savedPath, setSavedPath] = useState<string | null>(data?.path ?? null);
   const [validationError, setValidationError] = useState<string | null>(null);
-  const autoSaveTried = useRef(false);
 
   const ov = data?.overview ?? {};
   const isAI = !ov.dataSource || ov.dataSource === "ai";
@@ -59,7 +58,18 @@ export function ResearchTerminal({ data }: { data: any }) {
     },
   } as const;
 
-  async function persistResearch(showSuccessToast: boolean) {
+  // Quiet status only — does not save
+  useEffect(() => {
+    if (!symbol) return;
+    let cancelled = false;
+    (async () => {
+      const existing = await getTodayResearchPath(name, symbol);
+      if (!cancelled && existing?.path) setSavedPath(existing.path);
+    })();
+    return () => { cancelled = true; };
+  }, [symbol, name]);
+
+  async function handleSave() {
     setIsSaving(true);
     setValidationError(null);
     try {
@@ -67,7 +77,7 @@ export function ResearchTerminal({ data }: { data: any }) {
       if (result.ok) {
         setSavedPath(result.path);
         setValidationError(null);
-        if (showSuccessToast) toast.success(`Saved as ${result.path}`);
+        toast.success(`Saved as ${result.path}`);
         return;
       }
       if (result.reason === "duplicate") {
@@ -87,37 +97,13 @@ export function ResearchTerminal({ data }: { data: any }) {
     }
   }
 
-  // Auto-save once when research data is displayed
-  useEffect(() => {
-    if (!symbol || autoSaveTried.current) return;
-    autoSaveTried.current = true;
-
-    (async () => {
-      const existing = await getTodayResearchPath(name, symbol);
-      if (existing?.path) {
-        setSavedPath(existing.path);
-        const msg = `Research for ${existing.companyKey} on ${existing.researchDateKey} already exists (${existing.path}).`;
-        setValidationError(msg);
-        toast.error(msg, redToast);
-        return;
-      }
-      await persistResearch(true);
-    })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [symbol]);
-
   function handleRefresh() {
     startTransition(async () => {
-      autoSaveTried.current = false;
       setSavedPath(null);
       setValidationError(null);
       await refreshStockResearch(symbol);
       router.refresh();
     });
-  }
-
-  function handleSave() {
-    void persistResearch(true);
   }
 
   const historical = (data?.historical ?? []).map((d: { date: string | Date; close: number; volume: number }) => ({
@@ -190,13 +176,10 @@ export function ResearchTerminal({ data }: { data: any }) {
           </div>
         </div>
 
-        <div className="px-4 md:px-5 py-1.5 border-b border-border bg-background/40 flex items-center justify-between gap-2">
+        <div className="px-4 md:px-5 py-1.5 border-b border-border bg-background/40">
           <p className="text-muted-foreground font-mono text-[9px] uppercase tracking-widest truncate">
             {savedPath ? `Saved path: ${savedPath}` : isSaving ? `Saving as: ${previewPath}` : `Will save as: ${previewPath}`}
           </p>
-          {!savedPath && !isSaving && (
-            <span className="text-muted-foreground/60 font-mono text-[9px] shrink-0">Auto-saving…</span>
-          )}
         </div>
 
         <div className="px-4 md:px-5 py-4 flex flex-col sm:flex-row sm:items-start gap-4 sm:justify-between">
