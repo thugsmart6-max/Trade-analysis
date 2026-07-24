@@ -50,6 +50,15 @@ export function ResearchTerminal({ data }: { data: any }) {
   const dateKey = formatResearchDateKey();
   const previewPath = `${companyKey}/${dateKey}`;
 
+  const redToast = {
+    duration: 5000,
+    style: {
+      background: "#2A0F16",
+      border: "1px solid #FF4D6A",
+      color: "#FF4D6A",
+    },
+  } as const;
+
   async function persistResearch(showSuccessToast: boolean) {
     setIsSaving(true);
     setValidationError(null);
@@ -64,34 +73,15 @@ export function ResearchTerminal({ data }: { data: any }) {
       if (result.reason === "duplicate") {
         setSavedPath(result.path);
         setValidationError(result.message);
-        toast.error(result.message, {
-          style: {
-            background: "rgba(255, 77, 106, 0.12)",
-            border: "1px solid rgba(255, 77, 106, 0.45)",
-            color: "#FF4D6A",
-          },
-          className: "border-[#FF4D6A]/50 text-[#FF4D6A]",
-        });
+        toast.error(result.message, redToast);
         return;
       }
       setValidationError(result.message);
-      toast.error(result.message, {
-        style: {
-          background: "rgba(255, 77, 106, 0.12)",
-          border: "1px solid rgba(255, 77, 106, 0.45)",
-          color: "#FF4D6A",
-        },
-      });
+      toast.error(result.message, redToast);
     } catch (e) {
       const msg = e instanceof Error ? e.message : "Failed to save research";
       setValidationError(msg);
-      toast.error(msg, {
-        style: {
-          background: "rgba(255, 77, 106, 0.12)",
-          border: "1px solid rgba(255, 77, 106, 0.45)",
-          color: "#FF4D6A",
-        },
-      });
+      toast.error(msg, redToast);
     } finally {
       setIsSaving(false);
     }
@@ -108,15 +98,7 @@ export function ResearchTerminal({ data }: { data: any }) {
         setSavedPath(existing.path);
         const msg = `Research for ${existing.companyKey} on ${existing.researchDateKey} already exists (${existing.path}).`;
         setValidationError(msg);
-        // Red toast for duplicate validation
-        toast.error(msg, {
-          duration: 5000,
-          style: {
-            background: "#2A0F16",
-            border: "1px solid #FF4D6A",
-            color: "#FF4D6A",
-          },
-        });
+        toast.error(msg, redToast);
         return;
       }
       await persistResearch(true);
