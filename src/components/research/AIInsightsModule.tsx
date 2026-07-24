@@ -22,7 +22,7 @@ export function AIInsightsModule({ data }: { data: any }) {
     setLoading(true);
     setError(null);
     try {
-      const text = await generateAIInsights(symbol);
+      const text = await generateAIInsights(symbol, data);
       setInsight(text);
       setGenAt(new Date().toLocaleString());
     } catch (e) {

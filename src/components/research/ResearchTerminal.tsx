@@ -2,10 +2,12 @@
 
 import { useState, useTransition } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowLeft, TrendingUp, TrendingDown, Sparkles, ExternalLink, GitCompare, Info, RefreshCw } from "lucide-react";
+import { ArrowLeft, TrendingUp, TrendingDown, Sparkles, ExternalLink, GitCompare, Info, RefreshCw, Save } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { refreshStockResearch } from "@/actions/research";
+import { toast } from "sonner";
+import { refreshStockResearch, saveStockResearch } from "@/actions/research";
+import { formatResearchDateKey, toCompanyKey } from "@/lib/market/research-path";
 import { OverviewModule }     from "./OverviewModule";
 import { TechnicalModule }    from "./TechnicalModule";
 import { FundamentalModule }  from "./FundamentalModule";
@@ -31,6 +33,8 @@ export function ResearchTerminal({ data }: { data: any }) {
   const router = useRouter();
   const [activeTab, setActiveTab] = useState("overview");
   const [isPending, startTransition] = useTransition();
+  const [isSaving, setIsSaving] = useState(false);
+  const [savedPath, setSavedPath] = useState<string | null>(data?.path ?? null);
 
   const ov = data?.overview ?? {};
   const isAI = !ov.dataSource || ov.dataSource === "ai";
@@ -38,11 +42,35 @@ export function ResearchTerminal({ data }: { data: any }) {
   const TIcon = isUp ? TrendingUp : TrendingDown;
   const color = isUp ? "#00D4AA" : "#FF4D6A";
 
+  const companyKey = toCompanyKey(String(data?.name ?? ov.name ?? ""), String(ov.symbol ?? data?.symbol ?? ""));
+  const dateKey = formatResearchDateKey();
+  const previewPath = `${companyKey}/${dateKey}`;
+
   function handleRefresh() {
     startTransition(async () => {
       await refreshStockResearch(ov.symbol ?? "");
+      setSavedPath(null);
       router.refresh();
     });
+  }
+
+  async function handleSave() {
+    setIsSaving(true);
+    try {
+      const result = await saveStockResearch(data);
+      if (result.ok) {
+        setSavedPath(result.path);
+        toast.success(`Saved as ${result.path}`);
+      } else if (result.reason === "duplicate") {
+        toast.warning(result.message);
+      } else {
+        toast.error(result.message);
+      }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to save research");
+    } finally {
+      setIsSaving(false);
+    }
   }
 
   const historical = (data?.historical ?? []).map((d: { date: string | Date; close: number; volume: number }) => ({
@@ -53,7 +81,6 @@ export function ResearchTerminal({ data }: { data: any }) {
 
   return (
     <div className="space-y-4">
-      {/* Data source banner — only shown when Yahoo Finance is unavailable and AI is used */}
       {isAI && (
         <div className="flex items-start gap-2.5 px-4 py-3 bg-[#FF8C42]/6 border border-[#FF8C42]/20 rounded-xl">
           <Sparkles className="w-3.5 h-3.5 text-[#FF8C42] mt-0.5 shrink-0" />
@@ -67,7 +94,6 @@ export function ResearchTerminal({ data }: { data: any }) {
         </div>
       )}
 
-      {/* Stock Header */}
       <div className="bg-card border border-border rounded-xl overflow-hidden">
         <div className="px-4 md:px-5 py-3 border-b border-border flex items-center gap-2 md:gap-3">
           <button onClick={() => router.back()} className="text-muted-foreground hover:text-foreground transition-colors shrink-0">
@@ -75,6 +101,17 @@ export function ResearchTerminal({ data }: { data: any }) {
           </button>
           <span className="text-muted-foreground font-mono text-[10px] uppercase tracking-widest truncate">Stock Research Terminal</span>
           <div className="ml-auto flex items-center gap-1.5 shrink-0">
+            <button
+              onClick={handleSave}
+              disabled={isSaving || !!savedPath}
+              title={savedPath ? `Already saved as ${savedPath}` : `Save as ${previewPath}`}
+              className="flex items-center gap-1.5 h-7 px-2.5 bg-[#F0B429]/10 border border-[#F0B429]/30 rounded-lg text-[10px] font-mono text-[#F0B429] hover:bg-[#F0B429]/20 transition-colors disabled:opacity-50"
+            >
+              <Save className={`w-3 h-3 ${isSaving ? "animate-pulse" : ""}`} />
+              <span className="hidden sm:inline">
+                {isSaving ? "Saving…" : savedPath ? "Saved" : "Save"}
+              </span>
+            </button>
             <button
               onClick={handleRefresh}
               disabled={isPending}
@@ -99,8 +136,16 @@ export function ResearchTerminal({ data }: { data: any }) {
           </div>
         </div>
 
+        <div className="px-4 md:px-5 py-1.5 border-b border-border bg-background/40 flex items-center justify-between gap-2">
+          <p className="text-muted-foreground font-mono text-[9px] uppercase tracking-widest truncate">
+            {savedPath ? `Saved path: ${savedPath}` : `Will save as: ${previewPath}`}
+          </p>
+          {!savedPath && (
+            <span className="text-muted-foreground/60 font-mono text-[9px] shrink-0">Not saved to database</span>
+          )}
+        </div>
+
         <div className="px-4 md:px-5 py-4 flex flex-col sm:flex-row sm:items-start gap-4 sm:justify-between">
-          {/* Left — logo + name */}
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 md:w-12 md:h-12 rounded-xl bg-[#F0B429]/10 border border-[#F0B429]/20 flex items-center justify-center shrink-0">
               <span className="text-[#F0B429] font-black text-xs md:text-sm">{(ov.symbol ?? "??").slice(0, 3)}</span>
@@ -115,7 +160,6 @@ export function ResearchTerminal({ data }: { data: any }) {
             </div>
           </div>
 
-          {/* Right — price */}
           <div className="flex items-end justify-between sm:flex-col sm:items-end gap-2">
             <div>
               <p className="font-display text-2xl md:text-3xl font-bold text-foreground">
@@ -136,7 +180,6 @@ export function ResearchTerminal({ data }: { data: any }) {
         </div>
       </div>
 
-      {/* Tab Bar */}
       <div className="bg-card border border-border rounded-xl overflow-hidden">
         <div className="flex overflow-x-auto border-b border-border [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
           {TABS.map((tab) => (

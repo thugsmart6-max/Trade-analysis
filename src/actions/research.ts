@@ -15,14 +15,7 @@ import { calcRSI, calcMACD, calcSMA, calcEMA, calcBollinger, calcADX,
          calcSignalStats, type OHLCV } from "@/lib/market/indicators";
 import { calcMultiLevelSR } from "@/lib/market/levels";
 import { detectChartPatterns, classifyTrend } from "@/lib/market/patterns";
-
-const LIVE_TTL_MS = 15 * 60 * 1000;   // 15 min cache for live data
-const AI_TTL_MS  = 12 * 60 * 60 * 1000; // 12 hour cache for AI fallback
-
-function isStale(lastFetched: Date | null, ttl: number) {
-  if (!lastFetched) return true;
-  return Date.now() - new Date(lastFetched).getTime() > ttl;
-}
+import { formatResearchDateKey, toCompanyKey, startOfLocalDay } from "@/lib/market/research-path";
 
 // ─── Search ────────────────────────────────────────────────────────────────
 const NSE_STOCKS = [
@@ -87,58 +80,126 @@ export async function searchStocksAction(query: string) {
   ).slice(0, 8);
 }
 
-// ─── Force refresh — deletes cache then re-fetches ──────────────────────────
+// ─── Refresh — live re-fetch only (does not touch DB) ───────────────────────
 export async function refreshStockResearch(rawSymbol: string) {
-  const symbol = toNSE(rawSymbol.trim().toUpperCase());
-  await connectDB();
-  await StockResearch.deleteOne({ symbol });
   return getStockResearch(rawSymbol);
 }
 
-// ─── Main fetch: real Yahoo Finance data ────────────────────────────────────
+// ─── Main fetch: live data only — never auto-saves to DB ────────────────────
 export async function getStockResearch(rawSymbol: string) {
   const symbol = toNSE(rawSymbol.trim().toUpperCase());
-  await connectDB();
 
-  // Return cache if still fresh
-  const cached = await StockResearch.findOne({ symbol }).lean();
-  const ttl = (cached?.overview as Record<string,unknown>)?.dataSource === "ai"
-    ? AI_TTL_MS
-    : LIVE_TTL_MS;
-  if (cached && !isStale(cached.lastFetched as Date | null, ttl)) {
-    return JSON.parse(JSON.stringify(cached));
-  }
-
-  // ── Try Yahoo Finance (real live data) ──────────────────────────────────
   try {
     return await fetchFromYahoo(symbol);
   } catch (yahooErr) {
     console.warn("Yahoo Finance failed, falling back to AI:", (yahooErr as Error).message);
   }
 
-  // ── Fallback: AI-generated data ─────────────────────────────────────────
   const clean = symbol.replace(/\.(NS|BO)$/i, "");
   const aiData = await generateStockDataWithAI(clean);
 
-  const doc = {
+  return JSON.parse(JSON.stringify({
     symbol,
-    exchange:    "NS" as const,
+    exchange:    "NS",
     name:        aiData.name,
     sector:      aiData.sector,
     industry:    aiData.industry,
-    lastFetched: new Date(),
+    lastFetched: new Date().toISOString(),
     overview:    { ...aiData.overview, dataSource: "ai", dataNote: aiData.dataNote },
     technical:   aiData.technical,
     fundamental: aiData.fundamental,
-    historical:  aiData.historical.slice(-365).map((h) => ({
-      date: new Date(h.date), open: h.close, high: h.close * 1.01,
-      low: h.close * 0.99, close: h.close, volume: h.volume,
-    })),
-    aiInsights: aiData.aiInsights,
-  };
+    historical:  aiData.historical,
+    aiInsights:  aiData.aiInsights,
+    saved:       false,
+  }));
+}
 
-  await StockResearch.findOneAndUpdate({ symbol }, doc, { upsert: true, returnDocument: "after" });
-  return JSON.parse(JSON.stringify({ ...doc, historical: aiData.historical }));
+export type SaveResearchResult =
+  | { ok: true; path: string; id: string }
+  | { ok: false; reason: "duplicate"; path: string; message: string }
+  | { ok: false; reason: "error"; message: string };
+
+/** Explicit save — one entry per companyKey + date */
+export async function saveStockResearch(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  data: any,
+): Promise<SaveResearchResult> {
+  try {
+    await connectDB();
+    // Migrate away from legacy unique {symbol, exchange} index if present
+    try {
+      await StockResearch.collection.dropIndex("symbol_1_exchange_1");
+    } catch { /* index may not exist */ }
+    await StockResearch.syncIndexes();
+
+    const symbol = toNSE(String(data.symbol ?? data.overview?.symbol ?? ""));
+    const name = String(data.name ?? data.overview?.name ?? symbol);
+    const companyKey = toCompanyKey(name, symbol);
+    const researchDateKey = formatResearchDateKey();
+    const path = `${companyKey}/${researchDateKey}`;
+
+    const existing = await StockResearch.findOne({ companyKey, researchDateKey }).lean();
+    if (existing) {
+      return {
+        ok: false,
+        reason: "duplicate",
+        path,
+        message: `Research for ${companyKey} on ${researchDateKey} already exists (${path}).`,
+      };
+    }
+
+    const historicalRaw = Array.isArray(data.historical) ? data.historical : [];
+    const historical = historicalRaw.map((h: {
+      date: string | Date; open?: number; high?: number; low?: number; close: number; volume?: number;
+    }) => ({
+      date:   new Date(h.date),
+      open:   h.open ?? h.close,
+      high:   h.high ?? h.close,
+      low:    h.low ?? h.close,
+      close:  h.close,
+      volume: h.volume ?? 0,
+    }));
+
+    const doc = await StockResearch.create({
+      companyKey,
+      researchDateKey,
+      researchDate: startOfLocalDay(),
+      path,
+      symbol,
+      exchange:    "NS",
+      name,
+      sector:      String(data.sector ?? data.overview?.sector ?? ""),
+      industry:    String(data.industry ?? data.overview?.industry ?? ""),
+      lastFetched: new Date(),
+      overview:    data.overview ?? {},
+      technical:   data.technical ?? {},
+      fundamental: data.fundamental ?? {},
+      historical,
+      aiInsights:  data.aiInsights ?? [],
+    });
+
+    return { ok: true, path, id: String(doc._id) };
+  } catch (err) {
+    // Race: unique index violation
+    if (err && typeof err === "object" && "code" in err && (err as { code: number }).code === 11000) {
+      const symbol = toNSE(String(data.symbol ?? ""));
+      const name = String(data.name ?? data.overview?.name ?? symbol);
+      const companyKey = toCompanyKey(name, symbol);
+      const researchDateKey = formatResearchDateKey();
+      const path = `${companyKey}/${researchDateKey}`;
+      return {
+        ok: false,
+        reason: "duplicate",
+        path,
+        message: `Research for ${companyKey} on ${researchDateKey} already exists (${path}).`,
+      };
+    }
+    return {
+      ok: false,
+      reason: "error",
+      message: err instanceof Error ? err.message : "Failed to save research",
+    };
+  }
 }
 
 // ─── Yahoo Finance full data fetch ──────────────────────────────────────────
@@ -315,38 +376,51 @@ async function fetchFromYahoo(symbol: string) {
     technical,
     fundamental,
     historical:  historicalForDb,
-    aiInsights:  [],
+    aiInsights:  [] as Array<{ text: string; model: string; generatedAt: Date }>,
+    saved:       false,
   };
 
-  await StockResearch.findOneAndUpdate({ symbol }, doc, { upsert: true, returnDocument: "after" });
-
+  // Live view only — persist happens via saveStockResearch()
   return JSON.parse(JSON.stringify({ ...doc, historical: historicalForChart }));
 }
 
-// ─── Generate AI insight for a fetched stock ────────────────────────────────
-export async function generateAIInsights(symbol: string) {
-  await connectDB();
-  const doc = await StockResearch.findOne({ symbol }).lean();
-  if (!doc) throw new Error("Stock data not found. Load the stock page first.");
+// ─── Generate AI insight from in-memory research payload ────────────────────
+export async function generateAIInsights(
+  symbol: string,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  snapshot?: any,
+) {
+  let name = symbol;
+  let insightData: Record<string, unknown>;
 
-  const insightData = {
-    overview:   { name: doc.name, symbol: doc.symbol, sector: doc.sector },
-    technical: {
-      trend:      (doc.technical as Record<string, unknown>)?.trend,
-      rsi:        (doc.technical as Record<string, unknown>)?.rsi,
-      macdSignal: (doc.technical as Record<string, unknown>)?.macdSignal,
-    },
-    fundamental: doc.fundamental,
-  };
+  if (snapshot) {
+    name = String(snapshot.name ?? snapshot.overview?.name ?? symbol);
+    insightData = {
+      overview:   { name, symbol: snapshot.symbol ?? symbol, sector: snapshot.sector ?? snapshot.overview?.sector },
+      technical: {
+        trend:      snapshot.technical?.trend,
+        rsi:        snapshot.technical?.rsi,
+        macdSignal: snapshot.technical?.macdSignal,
+      },
+      fundamental: snapshot.fundamental,
+    };
+  } else {
+    await connectDB();
+    const doc = await StockResearch.findOne({ symbol }).sort({ researchDate: -1 }).lean();
+    if (!doc) throw new Error("Stock data not found. Load or save the stock page first.");
+    name = doc.name ?? symbol;
+    insightData = {
+      overview:   { name: doc.name, symbol: doc.symbol, sector: doc.sector },
+      technical: {
+        trend:      (doc.technical as Record<string, unknown>)?.trend,
+        rsi:        (doc.technical as Record<string, unknown>)?.rsi,
+        macdSignal: (doc.technical as Record<string, unknown>)?.macdSignal,
+      },
+      fundamental: doc.fundamental,
+    };
+  }
 
-  const text = await generateInsights(doc.name ?? symbol, symbol, insightData);
-
-  await StockResearch.findOneAndUpdate(
-    { symbol },
-    { $push: { aiInsights: { text, model: process.env.OPENROUTER_MODEL ?? "ai", generatedAt: new Date() } } }
-  );
-
-  return text;
+  return generateInsights(name, symbol, insightData);
 }
 
 // ─── Comparison ─────────────────────────────────────────────────────────────
@@ -372,13 +446,20 @@ const SCAN_UNIVERSE = [
 async function loadUniverse(limit = 40) {
   await connectDB();
   const symbols = SCAN_UNIVERSE.slice(0, limit);
+  // Latest saved research per symbol (explicit saves only)
   const cached = await StockResearch.find({
     symbol: { $in: symbols.map((s) => `${s}.NS`) },
-  }).lean();
+  })
+    .sort({ researchDate: -1 })
+    .lean();
 
-  const bySym = new Map(cached.map((d) => [d.symbol, d]));
+  const bySym = new Map<string, (typeof cached)[number]>();
+  for (const d of cached) {
+    if (!bySym.has(d.symbol)) bySym.set(d.symbol, d);
+  }
+
   const missing = symbols.filter((s) => !bySym.has(`${s}.NS`));
-
+  // Live warm for scanners when nothing saved yet (does not persist)
   const warmed = await Promise.all(
     missing.slice(0, 8).map((s) => getStockResearch(s).catch(() => null))
   );
