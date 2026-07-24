@@ -119,6 +119,22 @@ export type SaveResearchResult =
   | { ok: false; reason: "duplicate"; path: string; message: string }
   | { ok: false; reason: "error"; message: string };
 
+/** Check if company already has a save for today */
+export async function getTodayResearchPath(name: string, symbol: string) {
+  await connectDB();
+  const companyKey = toCompanyKey(name, symbol);
+  const researchDateKey = formatResearchDateKey();
+  const existing = await StockResearch.findOne({ companyKey, researchDateKey })
+    .select("path companyKey researchDateKey")
+    .lean();
+  if (!existing) return null;
+  return {
+    path: existing.path,
+    companyKey: existing.companyKey,
+    researchDateKey: existing.researchDateKey,
+  };
+}
+
 /** Explicit save — one entry per companyKey + date */
 export async function saveStockResearch(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -130,9 +146,14 @@ export async function saveStockResearch(
     try {
       await StockResearch.collection.dropIndex("symbol_1_exchange_1");
     } catch { /* index may not exist */ }
-    await StockResearch.syncIndexes();
+    try {
+      await StockResearch.syncIndexes();
+    } catch { /* indexes may already match */ }
 
     const symbol = toNSE(String(data.symbol ?? data.overview?.symbol ?? ""));
+    if (!symbol || symbol === ".NS") {
+      return { ok: false, reason: "error", message: "Missing stock symbol — cannot save research." };
+    }
     const name = String(data.name ?? data.overview?.name ?? symbol);
     const companyKey = toCompanyKey(name, symbol);
     const researchDateKey = formatResearchDateKey();
@@ -143,8 +164,8 @@ export async function saveStockResearch(
       return {
         ok: false,
         reason: "duplicate",
-        path,
-        message: `Research for ${companyKey} on ${researchDateKey} already exists (${path}).`,
+        path: existing.path ?? path,
+        message: `Research for ${companyKey} on ${researchDateKey} already exists (${existing.path ?? path}).`,
       };
     }
 
@@ -182,7 +203,7 @@ export async function saveStockResearch(
   } catch (err) {
     // Race: unique index violation
     if (err && typeof err === "object" && "code" in err && (err as { code: number }).code === 11000) {
-      const symbol = toNSE(String(data.symbol ?? ""));
+      const symbol = toNSE(String(data.symbol ?? data.overview?.symbol ?? ""));
       const name = String(data.name ?? data.overview?.name ?? symbol);
       const companyKey = toCompanyKey(name, symbol);
       const researchDateKey = formatResearchDateKey();
@@ -194,6 +215,7 @@ export async function saveStockResearch(
         message: `Research for ${companyKey} on ${researchDateKey} already exists (${path}).`,
       };
     }
+    console.error("saveStockResearch failed:", err);
     return {
       ok: false,
       reason: "error",

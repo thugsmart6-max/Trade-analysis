@@ -1,12 +1,12 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowLeft, TrendingUp, TrendingDown, Sparkles, ExternalLink, GitCompare, Info, RefreshCw, Save } from "lucide-react";
+import { ArrowLeft, TrendingUp, TrendingDown, Sparkles, ExternalLink, GitCompare, Info, RefreshCw, Save, AlertCircle } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { refreshStockResearch, saveStockResearch } from "@/actions/research";
+import { refreshStockResearch, saveStockResearch, getTodayResearchPath } from "@/actions/research";
 import { formatResearchDateKey, toCompanyKey } from "@/lib/market/research-path";
 import { OverviewModule }     from "./OverviewModule";
 import { TechnicalModule }    from "./TechnicalModule";
@@ -35,6 +35,8 @@ export function ResearchTerminal({ data }: { data: any }) {
   const [isPending, startTransition] = useTransition();
   const [isSaving, setIsSaving] = useState(false);
   const [savedPath, setSavedPath] = useState<string | null>(data?.path ?? null);
+  const [validationError, setValidationError] = useState<string | null>(null);
+  const autoSaveTried = useRef(false);
 
   const ov = data?.overview ?? {};
   const isAI = !ov.dataSource || ov.dataSource === "ai";
@@ -42,35 +44,98 @@ export function ResearchTerminal({ data }: { data: any }) {
   const TIcon = isUp ? TrendingUp : TrendingDown;
   const color = isUp ? "#00D4AA" : "#FF4D6A";
 
-  const companyKey = toCompanyKey(String(data?.name ?? ov.name ?? ""), String(ov.symbol ?? data?.symbol ?? ""));
+  const symbol = String(ov.symbol ?? data?.symbol ?? "");
+  const name = String(data?.name ?? ov.name ?? "");
+  const companyKey = toCompanyKey(name, symbol);
   const dateKey = formatResearchDateKey();
   const previewPath = `${companyKey}/${dateKey}`;
 
-  function handleRefresh() {
-    startTransition(async () => {
-      await refreshStockResearch(ov.symbol ?? "");
-      setSavedPath(null);
-      router.refresh();
-    });
-  }
-
-  async function handleSave() {
+  async function persistResearch(showSuccessToast: boolean) {
     setIsSaving(true);
+    setValidationError(null);
     try {
       const result = await saveStockResearch(data);
       if (result.ok) {
         setSavedPath(result.path);
-        toast.success(`Saved as ${result.path}`);
-      } else if (result.reason === "duplicate") {
-        toast.warning(result.message);
-      } else {
-        toast.error(result.message);
+        setValidationError(null);
+        if (showSuccessToast) toast.success(`Saved as ${result.path}`);
+        return;
       }
+      if (result.reason === "duplicate") {
+        setSavedPath(result.path);
+        setValidationError(result.message);
+        toast.error(result.message, {
+          style: {
+            background: "rgba(255, 77, 106, 0.12)",
+            border: "1px solid rgba(255, 77, 106, 0.45)",
+            color: "#FF4D6A",
+          },
+          className: "border-[#FF4D6A]/50 text-[#FF4D6A]",
+        });
+        return;
+      }
+      setValidationError(result.message);
+      toast.error(result.message, {
+        style: {
+          background: "rgba(255, 77, 106, 0.12)",
+          border: "1px solid rgba(255, 77, 106, 0.45)",
+          color: "#FF4D6A",
+        },
+      });
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Failed to save research");
+      const msg = e instanceof Error ? e.message : "Failed to save research";
+      setValidationError(msg);
+      toast.error(msg, {
+        style: {
+          background: "rgba(255, 77, 106, 0.12)",
+          border: "1px solid rgba(255, 77, 106, 0.45)",
+          color: "#FF4D6A",
+        },
+      });
     } finally {
       setIsSaving(false);
     }
+  }
+
+  // Auto-save once when research data is displayed
+  useEffect(() => {
+    if (!symbol || autoSaveTried.current) return;
+    autoSaveTried.current = true;
+
+    (async () => {
+      const existing = await getTodayResearchPath(name, symbol);
+      if (existing?.path) {
+        setSavedPath(existing.path);
+        const msg = `Research for ${existing.companyKey} on ${existing.researchDateKey} already exists (${existing.path}).`;
+        setValidationError(msg);
+        // Red toast for duplicate validation
+        toast.error(msg, {
+          duration: 5000,
+          style: {
+            background: "#2A0F16",
+            border: "1px solid #FF4D6A",
+            color: "#FF4D6A",
+          },
+        });
+        return;
+      }
+      await persistResearch(true);
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [symbol]);
+
+  function handleRefresh() {
+    startTransition(async () => {
+      autoSaveTried.current = false;
+      setSavedPath(null);
+      setValidationError(null);
+      await refreshStockResearch(symbol);
+      router.refresh();
+    });
+  }
+
+  function handleSave() {
+    void persistResearch(true);
   }
 
   const historical = (data?.historical ?? []).map((d: { date: string | Date; close: number; volume: number }) => ({
@@ -94,6 +159,13 @@ export function ResearchTerminal({ data }: { data: any }) {
         </div>
       )}
 
+      {validationError && (
+        <div className="flex items-start gap-2.5 px-4 py-3 bg-[#FF4D6A]/10 border border-[#FF4D6A]/40 rounded-xl">
+          <AlertCircle className="w-4 h-4 text-[#FF4D6A] mt-0.5 shrink-0" />
+          <p className="text-[#FF4D6A] text-xs font-mono leading-relaxed">{validationError}</p>
+        </div>
+      )}
+
       <div className="bg-card border border-border rounded-xl overflow-hidden">
         <div className="px-4 md:px-5 py-3 border-b border-border flex items-center gap-2 md:gap-3">
           <button onClick={() => router.back()} className="text-muted-foreground hover:text-foreground transition-colors shrink-0">
@@ -103,8 +175,8 @@ export function ResearchTerminal({ data }: { data: any }) {
           <div className="ml-auto flex items-center gap-1.5 shrink-0">
             <button
               onClick={handleSave}
-              disabled={isSaving || !!savedPath}
-              title={savedPath ? `Already saved as ${savedPath}` : `Save as ${previewPath}`}
+              disabled={isSaving}
+              title={savedPath ? `Saved as ${savedPath}` : `Save as ${previewPath}`}
               className="flex items-center gap-1.5 h-7 px-2.5 bg-[#F0B429]/10 border border-[#F0B429]/30 rounded-lg text-[10px] font-mono text-[#F0B429] hover:bg-[#F0B429]/20 transition-colors disabled:opacity-50"
             >
               <Save className={`w-3 h-3 ${isSaving ? "animate-pulse" : ""}`} />
@@ -121,7 +193,7 @@ export function ResearchTerminal({ data }: { data: any }) {
               <RefreshCw className={`w-3 h-3 ${isPending ? "animate-spin" : ""}`} />
               <span className="hidden sm:inline">{isPending ? "Updating…" : "Refresh"}</span>
             </button>
-            <Link href={`/research/compare?symbols=${ov.symbol?.replace(".NS","")}`}>
+            <Link href={`/research/compare?symbols=${symbol.replace(".NS","")}`}>
               <button className="hidden sm:flex items-center gap-1.5 h-7 px-2.5 bg-accent border border-border rounded-lg text-[10px] font-mono text-muted-foreground hover:text-[#F0B429] hover:border-[#F0B429]/30 transition-colors">
                 <GitCompare className="w-3 h-3" /> Compare
               </button>
@@ -138,22 +210,22 @@ export function ResearchTerminal({ data }: { data: any }) {
 
         <div className="px-4 md:px-5 py-1.5 border-b border-border bg-background/40 flex items-center justify-between gap-2">
           <p className="text-muted-foreground font-mono text-[9px] uppercase tracking-widest truncate">
-            {savedPath ? `Saved path: ${savedPath}` : `Will save as: ${previewPath}`}
+            {savedPath ? `Saved path: ${savedPath}` : isSaving ? `Saving as: ${previewPath}` : `Will save as: ${previewPath}`}
           </p>
-          {!savedPath && (
-            <span className="text-muted-foreground/60 font-mono text-[9px] shrink-0">Not saved to database</span>
+          {!savedPath && !isSaving && (
+            <span className="text-muted-foreground/60 font-mono text-[9px] shrink-0">Auto-saving…</span>
           )}
         </div>
 
         <div className="px-4 md:px-5 py-4 flex flex-col sm:flex-row sm:items-start gap-4 sm:justify-between">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 md:w-12 md:h-12 rounded-xl bg-[#F0B429]/10 border border-[#F0B429]/20 flex items-center justify-center shrink-0">
-              <span className="text-[#F0B429] font-black text-xs md:text-sm">{(ov.symbol ?? "??").slice(0, 3)}</span>
+              <span className="text-[#F0B429] font-black text-xs md:text-sm">{symbol.slice(0, 3) || "??"}</span>
             </div>
             <div className="min-w-0">
               <h1 className="font-display text-foreground text-lg md:text-xl font-bold truncate">{ov.name}</h1>
               <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
-                <span className="text-muted-foreground font-mono text-[10px]">{ov.symbol}</span>
+                <span className="text-muted-foreground font-mono text-[10px]">{symbol}</span>
                 {ov.exchange && <span className="text-muted-foreground font-mono text-[10px]">· {ov.exchange}</span>}
                 {ov.sector   && <span className="text-muted-foreground font-mono text-[10px] hidden sm:inline">· {ov.sector}</span>}
               </div>
